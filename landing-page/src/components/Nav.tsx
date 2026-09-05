@@ -119,7 +119,7 @@ export function Nav({ onLogin }: { onLogin: () => void }) {
         className="lp-btn lp-btn--ghost lp-btn--sm lp-only-pc"
         onClick={onLogin}
       >
-        登录
+        开始
       </button>
 
       <button
