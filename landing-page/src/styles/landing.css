@@ -1,0 +1,914 @@
+/* ① 悬浮胶囊导航：滚动吸顶；PC = Logo + 居中区块 Tab + 安装/登录，窄屏 = Logo + 安装/登录 + 目录下拉 */
+.lp-nav {
+  position: fixed;
+  top: 14px;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  width: min(var(--lp-max), calc(100% - 28px));
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 62px;
+  padding: 0 9px 0 12px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border: 1px solid var(--sh-line);
+  border-radius: 999px;
+  box-shadow: var(--lp-shadow-sm);
+  transition:
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.lp-nav--stuck {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--lp-shadow-md);
+}
+
+/* Tab 条：区块锚点直接排在胶囊内，水平居中并随滚动高亮 */
+.lp-nav__tabs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lp-nav__tab {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--sh-text);
+  white-space: nowrap;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.lp-nav__tab:hover {
+  background: var(--sh-sunken);
+  color: var(--sh-ink);
+}
+
+.lp-nav__tab--active {
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  font-weight: 600;
+}
+
+.lp-nav__tab--active:hover {
+  background: var(--sh-accent-line);
+  color: var(--sh-accent);
+}
+
+.lp-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lp-brand img {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.lp-brand span {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--sh-ink);
+  white-space: nowrap;
+}
+
+.lp-nav__spacer {
+  flex: 1;
+}
+
+.lp-nav__install {
+  flex-shrink: 0;
+}
+
+/* 产品下拉：hover 展开，绝对定位在 tab 下方 */
+.lp-nav__dropdown {
+  position: relative;
+}
+
+.lp-nav__dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 12px 6px 6px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-lg);
+  box-shadow: var(--lp-shadow-md);
+  z-index: 50;
+}
+
+.lp-nav__dropdown-item {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--sh-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sh-ink);
+  white-space: nowrap;
+  transition: background 0.16s ease;
+}
+
+.lp-nav__dropdown-item:hover {
+  background: var(--sh-sunken);
+}
+
+.lp-nav__dropdown-item--active {
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  font-weight: 600;
+}
+
+/* 移动端目录按钮 + 下拉（PC 用居中 Tab，窄屏才收进目录） */
+.lp-nav__toc {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--sh-ink);
+}
+
+.lp-nav__toc:hover {
+  background: var(--sh-sunken);
+}
+
+.lp-nav__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(56vh, 420px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-lg);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.lp-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--sh-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sh-ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.lp-nav__item:hover {
+  background: var(--sh-bg);
+}
+
+.lp-nav__item--active {
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  font-weight: 600;
+}
+
+/* 移动端目录中的产品分组 */
+.lp-nav__panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 4px;
+}
+
+.lp-nav__panel-label {
+  padding: 0 12px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sh-muted);
+  text-transform: uppercase;
+}
+
+/* ② Hero：细网格底纹 + 居中版式 */
+.lp-hero {
+  position: relative;
+  padding-top: clamp(132px, 17vw, 208px);
+  padding-bottom: clamp(64px, 8vw, 104px);
+  text-align: center;
+  overflow: hidden;
+}
+
+.lp-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(27, 33, 23, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 33, 23, 0.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(105% 74% at 50% 0%, #000 32%, transparent 100%);
+  mask-image: radial-gradient(105% 74% at 50% 0%, #000 32%, transparent 100%);
+  pointer-events: none;
+}
+
+.lp-hero__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+
+.lp-hero__notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 6px 0 6px;
+  border-radius: 999px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  font-size: 13.5px;
+  color: var(--sh-text);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.lp-hero__notice-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  background: var(--sh-brand);
+  color: var(--sh-brand-ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.lp-hero__notice-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  color: var(--sh-accent);
+  font-weight: 600;
+}
+
+.lp-hero__notice-link:hover {
+  background: var(--sh-accent-soft);
+}
+
+.lp-hero__title {
+  max-width: 15em;
+}
+
+.lp-hero__lead {
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.lp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.lp-hero__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  font-size: 14px;
+  color: var(--sh-muted);
+}
+
+.lp-hero__metrics strong {
+  color: var(--sh-ink);
+  font-weight: 600;
+}
+
+.lp-hero__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sh-ink);
+  font-weight: 600;
+}
+
+.lp-hero__dot {
+  color: var(--sh-line);
+}
+
+/* 双通道登录入口 */
+.lp-signin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.lp-signin__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+  font-size: 12.5px;
+  color: var(--sh-muted);
+}
+
+.lp-signin__divider::before,
+.lp-signin__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--sh-line);
+}
+
+.lp-glogo {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.lp-soon {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sh-sunken);
+  color: var(--sh-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.lp-hero__visual {
+  position: relative;
+  margin-top: clamp(32px, 5vw, 60px);
+}
+
+/* ④ 大字陈述 + 产品截图 */
+.lp-statement__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: clamp(36px, 6vw, 76px);
+  align-items: center;
+}
+
+.lp-statement__text {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ⑤ Feature 交替区 */
+.lp-features {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(80px, 11vw, 148px);
+}
+
+.lp-feature {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(36px, 6vw, 76px);
+  align-items: center;
+}
+
+.lp-feature--flip .lp-feature__text {
+  order: 2;
+}
+
+.lp-feature--flip .lp-feature__visual {
+  order: 1;
+}
+
+.lp-feature__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+/* 「01 · 采集」与说明句同行：大小字视觉等高居中对齐，窄到放不下时才另起一行 */
+.lp-feature__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+
+.lp-feature__head .lp-feature__sub {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--sh-text);
+}
+
+.lp-feature__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 4px;
+}
+
+/* ⑥ For Agents 深色区 */
+.lp-agents {
+  background: var(--lp-dark);
+  border-radius: var(--sh-radius-xl);
+  padding: clamp(44px, 6vw, 80px);
+  color: #fff;
+  overflow: hidden;
+  position: relative;
+}
+
+.lp-agents::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -60% auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180, 233, 104, 0.16), transparent 68%);
+  pointer-events: none;
+}
+
+.lp-agents__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: clamp(28px, 3.4vw, 46px);
+}
+
+.lp-agents__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+
+.lp-agents__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.lp-agents .lp-h2 {
+  color: #fff;
+}
+
+.lp-agents__copy {
+  color: var(--lp-dark-text);
+  font-size: 16.5px;
+}
+
+.lp-agents__link {
+  color: var(--sh-brand);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* ⑦ Testimonial 大卡 */
+.lp-quotes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.lp-quote {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  min-height: 320px;
+  padding: clamp(28px, 3.4vw, 44px);
+  border-radius: var(--sh-radius-xl);
+  color: #fff;
+}
+
+.lp-quote--green {
+  background: var(--sh-brand-ink);
+}
+
+.lp-quote--blue {
+  background: var(--lp-dark-2);
+}
+
+.lp-quote__text {
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 500;
+  line-height: 1.34;
+  letter-spacing: -0.02em;
+}
+
+.lp-quote__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.lp-quote__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--sh-brand);
+  color: var(--sh-brand-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ⑧ 底部 CTA 大卡 */
+.lp-final {
+  position: relative;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-xl);
+  padding: clamp(48px, 7vw, 92px) clamp(28px, 5vw, 72px);
+  text-align: center;
+}
+
+.lp-final__pills {
+  position: absolute;
+  inset: auto 0 -22px 0;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.lp-final__pill {
+  transform: rotate(-7deg);
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--sh-brand);
+  color: var(--sh-brand-ink);
+}
+
+.lp-final__pill:nth-child(2) {
+  transform: rotate(6deg) translateY(10px);
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  border: 1px solid var(--sh-accent-line);
+}
+
+.lp-final__pill:nth-child(3) {
+  transform: rotate(-4deg) translateY(4px);
+  background: var(--sh-sunken);
+  color: var(--sh-text);
+  border: 1px solid var(--sh-line);
+}
+
+.lp-final__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 34px;
+}
+
+/* ⑨ Footer */
+.lp-footer {
+  border-top: 1px solid var(--sh-line);
+  background: var(--sh-bg);
+  padding-block: clamp(48px, 6vw, 72px) 28px;
+}
+
+.lp-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
+  gap: 36px;
+}
+
+.lp-footer__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 300px;
+}
+
+.lp-footer__brand p {
+  font-size: 14px;
+  color: var(--sh-muted);
+}
+
+.lp-footer__col h4 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sh-ink);
+  margin-bottom: 14px;
+}
+
+.lp-footer__col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-footer__col a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14.5px;
+  color: var(--sh-muted);
+  transition: color 0.16s ease;
+}
+
+.lp-footer__col a:hover {
+  color: var(--sh-ink);
+}
+
+.lp-footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: clamp(36px, 5vw, 56px);
+  padding-top: 22px;
+  border-top: 1px solid var(--sh-line);
+  font-size: 13px;
+  color: var(--sh-muted);
+}
+
+.lp-footer__legal a:hover {
+  color: var(--sh-ink);
+}
+
+/* 登录弹层（§3.1 双通道） */
+.lp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(20, 24, 15, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.lp-modal__card {
+  width: min(420px, 100%);
+  padding: 28px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-lg);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.lp-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.lp-modal__close {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--sh-muted);
+}
+
+.lp-modal__close:hover {
+  background: var(--sh-sunken);
+  color: var(--sh-ink);
+}
+
+.lp-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lp-modal__body .lp-btn {
+  width: 100%;
+}
+
+.lp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.lp-form input {
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-sm);
+  background: var(--sh-surface);
+  color: var(--sh-ink);
+  font: inherit;
+  font-size: 14.5px;
+}
+
+.lp-form input:hover {
+  border-color: var(--sh-brand-active);
+}
+
+.lp-form input:focus {
+  outline: none;
+  border-color: var(--sh-brand);
+  box-shadow: 0 0 0 3px rgba(180, 233, 104, 0.28);
+}
+
+.lp-form__note {
+  font-size: 12.5px;
+  color: var(--sh-muted);
+  line-height: 1.5;
+}
+
+.lp-form__error {
+  font-size: 13px;
+  color: var(--sh-danger);
+}
+
+/* 响应式：两栏塌成一栏 */
+@media (max-width: 940px) {
+  .lp-statement__grid,
+  .lp-feature,
+  .lp-agents__grid,
+  .lp-quotes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lp-footer__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px 20px;
+  }
+
+  .lp-footer__brand {
+    grid-column: 1 / -1;
+    max-width: none;
+    gap: 8px;
+  }
+
+  .lp-footer__brand p {
+    font-size: 13px;
+  }
+
+  .lp-footer__col h4 {
+    margin-bottom: 8px;
+  }
+
+  .lp-footer__col ul {
+    gap: 8px;
+  }
+
+  .lp-footer {
+    padding-block: clamp(32px, 5vw, 48px) 20px;
+  }
+
+  .lp-feature--flip .lp-feature__text,
+  .lp-feature--flip .lp-feature__visual {
+    order: 0;
+  }
+
+  .lp-feature {
+    gap: 30px;
+  }
+
+  .lp-hero__title {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .lp-footer__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px 16px;
+  }
+
+  .lp-footer__brand {
+    grid-column: 1 / -1;
+    gap: 6px;
+  }
+}
+
+/* 导航切紧凑模式：Tab 条是绝对居中的，宽度不足 1000 时会压到右侧操作区，改为目录下拉 */
+@media (max-width: 1000px) {
+  .lp-nav {
+    height: 52px;
+    gap: 8px;
+    padding-left: 8px;
+  }
+
+  .lp-nav__tabs {
+    display: none;
+  }
+
+  /* 控制台只在 PC 使用：窄屏不给任何登录入口，页面只做业务介绍 */
+  .lp-only-pc {
+    display: none;
+  }
+
+  .lp-nav__toc {
+    display: inline-flex;
+  }
+
+  .lp-nav__panel {
+    display: flex;
+  }
+
+  .lp-brand img {
+    width: 26px;
+    height: 26px;
+  }
+
+  .lp-brand span {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 560px) {
+  .lp-container {
+    padding-inline: 18px;
+  }
+
+  .lp-agents {
+    border-radius: var(--sh-radius-lg);
+  }
+
+  .lp-quote {
+    min-height: 236px;
+    gap: 26px;
+  }
+
+  .lp-btn--lg {
+    width: 100%;
+  }
+}
+
+/* 极窄屏：宁可少显示文字，也不让导航栏折行或被挤扁 */
+@media (max-width: 420px) {
+  .lp-brand span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .lp-btn:hover {
+    transform: none;
+  }
+}

@@ -1,0 +1,7 @@
+packages:
+  - landing-page
+  - admin-page
+
+# pnpm 默认拦截依赖构建脚本；esbuild 需要它下载平台二进制
+allowBuilds:
+  esbuild: true

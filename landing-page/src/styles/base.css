@@ -1,0 +1,278 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sh-surface);
+  color: var(--sh-text);
+  font-family: var(--sh-font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sh-brand-active);
+  outline-offset: 3px;
+}
+
+.lp-container {
+  width: 100%;
+  max-width: var(--lp-max);
+  margin-inline: auto;
+  padding-inline: 28px;
+}
+
+/* 版块节奏：大留白，白底与浅底交替 */
+.lp-section {
+  padding-block: clamp(76px, 10vw, 132px);
+  scroll-margin-top: 96px;
+}
+
+.lp-section--sunken {
+  background: var(--sh-bg);
+}
+
+figure,
+blockquote {
+  margin: 0;
+}
+
+/* 标题层级 */
+.lp-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-accent);
+}
+
+.lp-eyebrow--brand {
+  color: var(--sh-brand);
+}
+
+.lp-h1 {
+  font-size: clamp(44px, 7.4vw, 88px);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  color: var(--sh-ink);
+}
+
+.lp-h2 {
+  font-size: clamp(32px, 4.4vw, 56px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--sh-ink);
+  text-wrap: balance;
+}
+
+.lp-h3 {
+  font-size: clamp(26px, 3.2vw, 40px);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.022em;
+  color: var(--sh-ink);
+}
+
+.lp-lead {
+  font-size: clamp(17px, 1.5vw, 20px);
+  color: var(--sh-muted);
+  line-height: 1.65;
+}
+
+.lp-copy {
+  font-size: 16.5px;
+  color: var(--sh-text);
+}
+
+/* 关键词高亮：全站唯一强调色 */
+.lp-mark {
+  display: inline-block;
+  padding-inline: 0.1em;
+  border-radius: 0.16em;
+  background: var(--sh-brand);
+  color: var(--sh-brand-ink);
+}
+
+/* 按钮 */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding-inline: 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.lp-btn:hover {
+  transform: translateY(-1px);
+}
+
+.lp-btn:active {
+  transform: translateY(0);
+}
+
+.lp-btn--primary {
+  background: var(--sh-brand);
+  color: var(--sh-brand-ink);
+}
+
+.lp-btn--primary:hover {
+  background: var(--sh-brand-hover);
+}
+
+.lp-btn--ghost {
+  background: var(--sh-surface);
+  color: var(--sh-ink);
+  border: 1px solid var(--sh-line);
+}
+
+.lp-btn--ghost:hover {
+  border-color: var(--sh-brand-active);
+}
+
+.lp-btn--lg {
+  height: 54px;
+  padding-inline: 30px;
+  font-size: 16px;
+}
+
+.lp-btn--sm {
+  height: 36px;
+  padding-inline: 16px;
+  font-size: 14px;
+}
+
+.lp-btn[disabled] {
+  background: var(--sh-sunken);
+  color: var(--sh-muted);
+  border-color: var(--sh-line);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 文字链接 */
+.lp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sh-ink);
+  border-bottom: 1px solid var(--sh-line);
+  padding-bottom: 2px;
+  transition: border-color 0.16s ease;
+}
+
+.lp-link:hover {
+  border-color: var(--sh-brand-active);
+}
+
+/* 药丸 */
+.lp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  font-size: 13px;
+  color: var(--sh-text);
+  white-space: nowrap;
+}
+
+.lp-pill--brand {
+  background: var(--sh-accent-soft);
+  border-color: var(--sh-accent-line);
+  color: var(--sh-accent);
+  font-weight: 600;
+}
+
+.lp-pill--dark {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--lp-dark-line);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 能力 Chip：Feature 区的能力云 */
+.lp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sh-ink);
+}
+
+.lp-chip svg {
+  color: var(--sh-accent);
+  flex-shrink: 0;
+}
+
+/* 中文短语防折行 */
+.lp-nb {
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

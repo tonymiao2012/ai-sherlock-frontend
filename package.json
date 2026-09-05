@@ -1,0 +1,15 @@
+{
+  "name": "ai-sherlock-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:landing": "pnpm --filter landing-page dev",
+    "dev:admin": "pnpm --filter admin-page dev",
+    "build": "pnpm -r build",
+    "preview": "pnpm -r preview",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

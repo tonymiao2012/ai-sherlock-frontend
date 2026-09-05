@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Sherlock 测试页面</title>
+<style>
+  :root { --line: #e2e6ee; --accent: #4a36e3; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #f5f7fa; color: #0e1322;
+  }
+  h1 { font-size: 22px; border-bottom: 3px solid var(--accent); padding-bottom: 8px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; color: var(--accent); }
+  .panel {
+    background: #fff; border: 1px solid var(--line);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  }
+  button {
+    padding: 6px 14px; margin: 4px 8px 4px 0;
+    border: 1px solid var(--accent); border-radius: 4px;
+    background: #fff; color: var(--accent); cursor: pointer; font-size: 14px;
+  }
+  button:hover { background: #ece8ff; }
+  button.danger { border-color: #d4380d; color: #d4380d; }
+  button.danger:hover { background: #fff2e8; }
+  input, textarea { padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; margin-right: 8px; }
+  #counter-box { padding: 12px; background: #ece8ff; border-radius: 6px; display: inline-block; min-width: 120px; text-align: center; }
+  #color-box { width: 120px; height: 60px; border-radius: 6px; background: #4a36e3; transition: background 0.3s; display: inline-block; }
+  #log-out { font-family: monospace; font-size: 12px; background: #f6f8fa; padding: 8px; border-radius: 4px; min-height: 20px; white-space: pre-wrap; }
+  ul { margin: 8px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+  <h1>AI Sherlock 插件测试页面</h1>
+  <p>用这个页面逐项验证插件能力：<b>开始录制 → 点击下方按钮制造各类事件 → 停止录制 → 截图批注 → 提交</b>。</p>
+
+  <div class="panel">
+    <h2>1. Console 采集</h2>
+    <button onclick="console.error('模拟严重错误：订单提交失败', { code: 500, orderId: 'ORD-1001' })">console.error</button>
+    <button onclick="console.warn('模拟警告：接口响应缓慢 2300ms')">console.warn</button>
+    <button onclick="console.log('普通日志（应被过滤或低优先级）')">console.log</button>
+    <button onclick="for (let i = 0; i < 10; i++) console.error('批量错误 #' + i)">批量 error ×10</button>
+  </div>
+
+  <div class="panel">
+    <h2>2. 未捕获异常 / 错误堆栈</h2>
+    <button class="danger" onclick="setTimeout(() => { throw new Error('模拟未捕获异常：渲染组件崩溃'); }, 50)">抛出未捕获异常</button>
+    <button class="danger" onclick="deepError()">深层调用栈异常</button>
+    <button class="danger" onclick="Promise.reject(new Error('模拟未处理的 Promise rejection'))">unhandledrejection</button>
+    <button class="danger" onclick="fetchJsonFail()">async 函数内抛错</button>
+  </div>
+
+  <div class="panel">
+    <h2>3. Network 采集（fetch / XHR）</h2>
+    <button onclick="doFetchOk()">fetch 成功(200)</button>
+    <button onclick="doFetch404()">fetch 404</button>
+    <button onclick="doFetch500()">fetch 500</button>
+    <button onclick="doFetchNetworkError()">fetch 网络错误</button>
+    <button onclick="doPost()">POST 带请求体</button>
+    <button onclick="doFetchTraceId()">fetch 带 transactionId</button>
+    <button onclick="doXhrOk()">XHR 成功</button>
+    <button onclick="doXhrFail()">XHR 失败</button>
+    <button onclick="doSlowFetch()">慢请求(1.5s)</button>
+    <div id="log-out">（请求结果显示在这里）</div>
+  </div>
+
+  <div class="panel">
+    <h2>4. 录制回放素材（DOM 交互）</h2>
+    <p>录制时操作下面这些元素，回放时可以看到完整过程：</p>
+    <button onclick="count++;$('counter-box').textContent='计数：'+count">点我 +1</button>
+    <span id="counter-box">计数：0</span>
+    <br /><br />
+    <input id="name-input" placeholder="录制时在这里输入文字" />
+    <textarea id="desc-input" placeholder="多行输入框" rows="2" cols="30"></textarea>
+    <br /><br />
+    <button onclick="addItem()">添加列表项</button>
+    <button onclick="$('color-box').style.background=randomColor()">切换色块颜色</button>
+    <button onclick="toggleBox()">显示/隐藏区块</button>
+    <div id="color-box"></div>
+    <ul id="dyn-list"></ul>
+    <div id="toggle-box" style="padding:10px;background:#e9fbf5;border-radius:6px;">这是一个可切换显示的区块</div>
+  </div>
+
+<script>
+  let count = 0;
+  const $ = (id) => document.getElementById(id);
+  const out = (msg) => { $('log-out').textContent = msg; };
+
+  // ---- 异常模拟 ----
+  function deepError() {
+    function levelA() { levelB(); }
+    function levelB() { levelC(); }
+    function levelC() { throw new Error('深层调用栈异常：数据解析失败'); }
+    levelA();
+  }
+  async function fetchJsonFail() {
+    try {
+      const data = JSON.parse('{"broken": '); // 故意坏 JSON
+      return data;
+    } catch (e) {
+      // 重新抛出变成 unhandledrejection
+      throw new Error('业务层包装错误：' + e.message);
+    }
+  }
+
+  // ---- Network 模拟 ----
+  async function doFetchOk() {
+    const res = await fetch('./index.html');
+    out('fetch 200：status=' + res.status + '，body 长度 ' + (await res.text()).length);
+  }
+  async function doFetch404() {
+    try {
+      const res = await fetch('./not-exist-' + Date.now() + '.json');
+      out('fetch 404：status=' + res.status);
+    } catch (e) { out('fetch 404 异常：' + e); }
+  }
+  async function doFetch500() {
+    // 静态服务器没有 500 端点，用 query 模拟业务失败场景；真实联调时可改指向后端 500 接口
+    try {
+      const res = await fetch('./index.html?simulate=500');
+      out('（静态页无法真正返回 500，status=' + res.status + '；联调后端时改此按钮指向真实 500 接口）');
+      if (res.ok) console.error('模拟业务失败：服务端返回错误码', { api: '/api/order/submit', code: 'INTERNAL_ERROR' });
+    } catch (e) { out('异常：' + e); }
+  }
+  async function doFetchNetworkError() {
+    try {
+      await fetch('https://invalid.invalid.test/never');
+      out('不应该成功');
+    } catch (e) { out('网络错误（符合预期）：' + e); }
+  }
+  async function doPost() {
+    try {
+      const res = await fetch('./index.html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: 'ORD-1001', action: 'submit', amount: 99.9 }),
+      });
+      out('POST 完成：status=' + res.status + '（静态服务器会返回 501 或 200，重点是请求体被采集）');
+    } catch (e) { out('POST 异常：' + e); }
+  }
+  async function doFetchTraceId() {
+    const res = await fetch('./index.html', { headers: { 'X-Transaction-Id': 'txn-' + Date.now() } });
+    out('fetch 带 X-Transaction-Id 头：status=' + res.status + '，检查 Network 详情中的 traceIds');
+  }
+  function doXhrOk() {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', './index.html');
+    xhr.onload = () => out('XHR 成功：status=' + xhr.status);
+    xhr.send();
+  }
+  function doXhrFail() {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', './xhr-missing-' + Date.now() + '.json');
+    xhr.onload = () => out('XHR 失败：status=' + xhr.status);
+    xhr.onerror = () => out('XHR 网络错误');
+    xhr.send();
+  }
+  async function doSlowFetch() {
+    out('慢请求进行中…');
+    const t0 = Date.now();
+    const res = await fetch('./index.html?slow=1&t=' + Date.now());
+    out('慢请求完成：耗时 ' + (Date.now() - t0) + 'ms（插件记录的 duration 应接近）');
+  }
+
+  // ---- 录制素材 ----
+  let listItem = 0;
+  function addItem() {
+    const li = document.createElement('li');
+    li.textContent = '动态列表项 #' + (++listItem) + '（' + new Date().toLocaleTimeString() + '）';
+    $('dyn-list').appendChild(li);
+  }
+  function randomColor() {
+    return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+  }
+  function toggleBox() {
+    const box = $('toggle-box');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  }
+
+  console.log('测试页面已加载，插件注入脚本应已在上方输出就绪日志');
+</script>
+</body>
+</html>

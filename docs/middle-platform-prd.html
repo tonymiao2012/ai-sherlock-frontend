@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Sherlock — 中台管理系统 PRD V1.1</title>
+<style>
+:root{
+  --bg:#f5f7fb; --paper:#ffffff; --ink:#15213b; --muted:#667085;
+  --line:#dbe2ef; --primary:#4f46e5; --primary2:#6d5dfc;
+  --green:#16856b; --green-bg:#e9f8f3; --amber:#a15c00; --amber-bg:#fff5df;
+  --red:#b42318; --red-bg:#fff0ef; --blue-bg:#eef4ff; --purple-bg:#f4f0ff;
+  --shadow:0 14px 42px rgba(29,41,57,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.72;
+}
+.container{max-width:1280px;margin:0 auto;padding:32px 28px 80px}
+
+/* Hero */
+.hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 40%,#4f46e5 100%);
+  color:white;border-radius:28px;padding:52px 56px;box-shadow:var(--shadow);margin-bottom:28px;
+}
+.hero:after{
+  content:"";position:absolute;right:-90px;top:-90px;width:360px;height:360px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.15),rgba(255,255,255,0) 68%);
+}
+.hero:before{
+  content:"";position:absolute;left:-60px;bottom:-60px;width:240px;height:240px;border-radius:50%;
+  background:radial-gradient(circle,rgba(109,93,252,.3),rgba(109,93,252,0) 70%);
+}
+.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#c9cbff;font-weight:700}
+.hero h1{font-size:42px;line-height:1.12;margin:8px 0 16px;letter-spacing:-.03em}
+.hero .subtitle{font-size:18px;color:#e6e7ff;max-width:880px;margin:0}
+.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+.pill{padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.18);font-size:12px}
+
+/* Grid */
+.grid{display:grid;gap:20px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+/* Card */
+.card{
+  background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:24px;
+  box-shadow:0 6px 22px rgba(29,41,57,.04)
+}
+.card h3{margin:0 0 8px;font-size:18px}
+.kpi{font-size:32px;font-weight:800;letter-spacing:-.03em;margin:4px 0}
+.small{font-size:13px;color:var(--muted)}
+
+/* Section */
+.section{margin-top:28px}
+.section-title{display:flex;align-items:flex-start;gap:14px;margin:0 0 14px}
+.num{
+  flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--primary);
+  color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:2px
+}
+.section h2{margin:0;font-size:28px;letter-spacing:-.02em}
+.section-intro{color:var(--muted);max-width:1000px;margin:2px 0 18px}
+
+/* Boxes */
+.highlight{border-left:4px solid var(--primary);background:var(--blue-bg);padding:16px 18px;border-radius:0 14px 14px 0;margin:16px 0}
+.note{background:var(--amber-bg);border:1px solid #f5d48b;border-radius:14px;padding:14px 16px;color:#6b4600}
+.success{background:var(--green-bg);border:1px solid #a9dfcf;border-radius:14px;padding:14px 16px;color:#145c4d}
+.danger{background:var(--red-bg);border:1px solid #f1c1bd;border-radius:14px;padding:14px 16px;color:#7d271f}
+
+/* Table */
+table{width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-size:14px}
+th{background:#f8faff;font-weight:700}
+tr:last-child td{border-bottom:none}
+
+/* Code */
+code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.92em;background:#f2f4f7;padding:2px 6px;border-radius:6px}
+pre{
+  background:#101828;color:#e8edff;border-radius:16px;padding:18px 20px;overflow:auto;
+  font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;line-height:1.6;border:1px solid #233150
+}
+pre code{background:transparent;padding:0;color:inherit}
+
+/* Tag */
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-right:5px}
+.tag.p{background:#ebe9ff;color:#4938cf}
+.tag.g{background:#e8f7f1;color:#14725c}
+.tag.a{background:#fff1d9;color:#8b5500}
+.tag.r{background:#ffebe8;color:#a62b21}
+.tag.b{background:#eef4ff;color:#2f4f9d}
+
+/* Diagram */
+.diagram{
+  background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--line);border-radius:20px;
+  padding:18px;overflow:auto;box-shadow:0 6px 20px rgba(29,41,57,.04);margin:16px 0 22px
+}
+.diagram-title{font-size:13px;color:var(--muted);margin:0 0 10px;font-weight:700}
+svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+
+/* TOC */
+.toc{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px 24px;box-shadow:0 6px 20px rgba(29,41,57,.04)}
+.toc ol{columns:2;column-gap:42px;margin:8px 0 0;padding-left:20px}
+.toc a{color:#334155;text-decoration:none}.toc a:hover{color:var(--primary)}
+
+/* Flow */
+.flow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.flow-step{
+  background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;
+  font-size:13px;font-weight:600;white-space:nowrap
+}
+.flow-step.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.flow-step.success{background:var(--green-bg);color:var(--green);border-color:#a9dfcf}
+.flow-step.warn{background:var(--amber-bg);color:var(--amber);border-color:#f5d48b}
+.flow-arrow{color:var(--muted);font-size:18px}
+
+/* Wireframe */
+.wire{
+  background:#f8faff;border:2px dashed var(--line);border-radius:20px;padding:20px;margin:16px 0;
+  font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;line-height:1.6;color:#334155
+}
+.wire-title{font-size:13px;color:var(--muted);margin:0 0 10px;font-weight:700;font-family:Inter,sans-serif}
+.wire-nav{
+  background:#eef4ff;border:1px solid #c9d8f5;border-radius:8px;padding:8px 12px;margin-bottom:12px;
+  display:flex;justify-content:space-between;align-items:center
+}
+.wire-sidebar{
+  display:grid;grid-template-columns:200px 1fr;gap:12px
+}
+.wire-side{
+  background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px
+}
+.wire-main{
+  background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px
+}
+.wire-item{padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:11px}
+.wire-item:last-child{border-bottom:none}
+.wire-card{
+  background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin:6px 0;font-size:11px
+}
+
+.footer{margin-top:42px;color:var(--muted);font-size:12px;text-align:center}
+.hr{height:1px;background:var(--line);margin:26px 0}
+
+@media(max-width:900px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .hero{padding:36px 28px}.hero h1{font-size:34px}.toc ol{columns:1}
+  .container{padding:18px 14px 60px}
+  .wire-sidebar{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- HERO -->
+<!-- ============================================================ -->
+<header class="hero">
+  <div class="eyebrow">AI SHERLOCK · MANAGEMENT CONSOLE PRD</div>
+  <h1>AI Sherlock 中台管理系统<br/>产品需求文档 V1.1</h1>
+  <p class="subtitle">
+    中台是 AI Sherlock 全链路的中枢控制台：汇聚 Chrome 插件采集数据、绑定内部多仓源码与日志系统，
+    以项目为维度驱动 JIRA 工单全生命周期，结合 LLM 自动诊断与源码修复，实现从问题发现到 UAT 发布的端到端闭环。
+  </p>
+  <div class="meta">
+    <span class="pill">版本 1.1</span>
+    <span class="pill">2026-09-02</span>
+    <span class="pill">React + Ant Design</span>
+    <span class="pill">Spring Boot</span>
+    <span class="pill">JIRA API</span>
+    <span class="pill">LLM / Devin</span>
+    <span class="pill">Bitbucket API</span>
+    <span class="pill">CI/CD Pipeline</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!-- TOC -->
+<!-- ============================================================ -->
+<section class="toc section">
+  <h3 style="margin:0">目录</h3>
+  <ol>
+    <li><a href="#positioning">中台定位与核心价值</a></li>
+    <li><a href="#users">用户角色与权限模型</a></li>
+    <li><a href="#landing">首页 — 项目官网介绍页</a></li>
+    <li><a href="#admin">Admin 控制台总览</a></li>
+    <li><a href="#platform">平台管理 — 源码仓库 &amp; 日志系统绑定</a></li>
+    <li><a href="#jira-board">JIRA 项目看板 — 按项目维度汇总</a></li>
+    <li><a href="#llm-workflow">LLM 诊断分析 Workflow</a></li>
+    <li><a href="#auto-fix">人工审批 → LLM 自动修复 &amp; PR</a></li>
+    <li><a href="#pr-jira">PR 结果汇总 &amp; JIRA 联动</a></li>
+    <li><a href="#uat">Merge 后自动发布 UAT</a></li>
+    <li><a href="#data-model">数据模型扩展</a></li>
+    <li><a href="#api">中台 API 设计</a></li>
+    <li><a href="#wireframes">关键页面原型</a></li>
+    <li><a href="#milestones">里程碑与 MVP 范围</a></li>
+    <li><a href="#risks">风险与应对</a></li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<!-- 01  POSITIONING -->
+<!-- ============================================================ -->
+<section id="positioning" class="section">
+  <div class="section-title"><div class="num">01</div><div><h2>中台定位与核心价值</h2><p class="section-intro">中台不是又一个 Admin CRUD，而是 AI Sherlock 从"采集→诊断→修复→发布"全链路的中枢驾驶舱。</p></div></div>
+
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>信息汇聚中枢</h3>
+      <p class="small">将 Chrome 插件采集的现场数据（Network、Console、Error、截图、录屏）、内部多仓源码（Bitbucket 多项目多仓库）、多种日志系统（Elastic/Kibana、业务审计日志）统一汇聚并关联绑定，消灭信息孤岛。</p>
+    </div>
+    <div class="card">
+      <h3>项目维度驱动</h3>
+      <p class="small">一切数据以"项目"为核心组织单元。每个项目绑定其前端仓库、后端微服务仓库、日志索引、JIRA Project、负责人（Owner），形成从问题发现到责任归属的完整闭环。</p>
+    </div>
+    <div class="card">
+      <h3>AI 闭环引擎</h3>
+      <p class="small">LLM 诊断结果在 JIRA 中呈现，人工审批通过后一键触发 LLM 自动修复源码并创建 PR，PR 结果回写 JIRA，Merge 后自动发布到 UAT 环境 — 全程不离开中台 &amp; JIRA。</p>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <b>中台主线：</b>
+    <code>项目注册 → 仓库/日志绑定 → 插件采集入库 → Case &amp; Finding 生成 → JIRA 看板 → LLM 分析 → 人工审批 → 自动修复 &amp; PR → Merge → UAT 发布</code>
+  </div>
+
+  <div class="grid grid-4" style="margin-top:18px">
+    <div class="card" style="text-align:center">
+      <div class="kpi" style="color:var(--primary)">5</div>
+      <div class="small">核心功能模块</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="kpi" style="color:var(--green)">3</div>
+      <div class="small">外部系统集成<br/>(JIRA / Bitbucket / Elastic)</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="kpi" style="color:var(--amber)">2</div>
+      <div class="small">LLM 驱动环节<br/>(诊断 / 修复)</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="kpi" style="color:var(--primary2)">1</div>
+      <div class="small">端到端闭环<br/>(发现 → UAT)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 02  USERS -->
+<!-- ============================================================ -->
+<section id="users" class="section">
+  <div class="section-title"><div class="num">02</div><div><h2>用户角色与权限模型</h2><p class="section-intro">中台面向三类用户，权限分层控制可见范围与操作能力。</p></div></div>
+
+  <table>
+    <thead>
+      <tr><th>角色</th><th>说明</th><th>核心权限</th><th>默认范围</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tag p">Admin</span></td>
+        <td>系统管理员</td>
+        <td>项目注册/编辑、仓库&amp;日志绑定、用户管理、Capability 配置、全局统计</td>
+        <td>全 Organization</td>
+      </tr>
+      <tr>
+        <td><span class="tag b">Project Owner</span></td>
+        <td>项目负责人</td>
+        <td>查看本项目全部 Case/Finding/JIRA、审批 LLM 修复、触发 UAT 发布、项目级统计</td>
+        <td>所属项目</td>
+      </tr>
+      <tr>
+        <td><span class="tag g">Developer</span></td>
+        <td>开发人员</td>
+        <td>查看分配给自己的 JIRA、审阅 PR、执行 LLM 修复（Owner 授权时）</td>
+        <td>被分配的工单</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>MVP 权限策略：</b>复用后端技术设计文档中的 Group / Capability Profile 模型。认证层采用双通道策略（详见 §3）：外网 Google OAuth + 辅助密码登录完整实现，企业 SSO 预留接口。中台 Admin 页面作为 Group Admin 的管理入口，Developer 通过 JIRA 的 assignee 关系自动关联。
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 03  LANDING PAGE -->
+<!-- ============================================================ -->
+<section id="landing" class="section">
+  <div class="section-title"><div class="num">03</div><div><h2>首页 — 项目官网介绍页</h2><p class="section-intro">未登录用户看到的是 AI Sherlock 的产品官网首页，点击"登录"后进入 Admin 控制台。</p></div></div>
+
+  <h3>3.1 页面结构</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>公开首页（Landing Page）</h3>
+      <ul>
+        <li><b>Hero 区域：</b>产品 Slogan + 一句话价值主张 + 主视觉</li>
+        <li><b>功能亮点：</b>3-4 个核心能力卡片（一键上报、AI 诊断、自动修复、全链路追踪）</li>
+        <li><b>工作流演示：</b>动画流程图展示 插件上报 → AI 分析 → JIRA → 修复 → 发布 的端到端流程</li>
+        <li><b>数据看板（可选）：</b>展示脱敏后的实时统计数字（今日 Case 数、平均诊断耗时、修复成功率）</li>
+        <li><b>导航栏：</b>右上角 [登录] 按钮，已登录用户显示 [进入控制台]</li>
+        <li><b>Footer：</b>文档链接、版本信息、联系方式</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>双通道认证策略</h3>
+      <ul>
+        <li><b>外网通道 — Google OAuth 2.0：</b>
+          <ul>
+            <li>零运维，用户无需注册/记密码，覆盖率最高</li>
+            <li>Google email 作为用户唯一标识，绑定内部角色</li>
+            <li>可配置 email 域名白名单（如仅允许 <code>@company.com</code>），兼顾开放与安全</li>
+            <li>对接 Google Identity Services SDK，前端 <code>Sign In With Google</code> 按钮</li>
+          </ul>
+        </li>
+        <li><b>内网通道 — 企业 SSO（OIDC / SAML）：</b>
+          <ul>
+            <li>对接企业 AD/LDAP 已有用户体系，登录后自动同步 Organization / Group</li>
+            <li>银行/企业场景必选，满足合规与审计要求</li>
+            <li>支持 SAML 2.0（ADFS / Okta）和 OIDC（Keycloak / Azure AD）</li>
+          </ul>
+        </li>
+        <li><b>辅助通道 — 用户名密码（MVP 开发用）：</b>
+          <ul>
+            <li>仅用于本地开发、演示和 Hackathon，生产环境可关闭</li>
+            <li>对接后端 <code>POST /api/v1/auth/login</code></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>3.2 统一身份模型</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>核心原则：一个 Email，一个用户</h3>
+      <p class="small">
+        不管通过 Google OAuth 还是企业 SSO 登录，中台后端只认一个 <code>User</code> 模型。
+        以 <b>email 作为主键</b>，OAuth 和 SSO 只是两种 <code>AuthProvider</code> 实现。
+        同一用户可能同时拥有两种登录方式（如公司邮箱既是 Google Workspace 又接了 SSO），不会产生重复账号。
+      </p>
+    </div>
+    <div class="card">
+      <h3>User 数据模型</h3>
+      <table style="font-size:13px;margin:0">
+        <tbody>
+          <tr><td style="width:130px"><code>id</code></td><td>BIGSERIAL PK</td></tr>
+          <tr><td><code>email</code></td><td>VARCHAR UNIQUE — 用户唯一标识</td></tr>
+          <tr><td><code>display_name</code></td><td>显示名称（从 Provider Profile 同步）</td></tr>
+          <tr><td><code>avatar_url</code></td><td>头像（从 Provider Profile 同步）</td></tr>
+          <tr><td><code>auth_provider</code></td><td><code>GOOGLE</code> / <code>SSO</code> / <code>PASSWORD</code>（首次注册通道）</td></tr>
+          <tr><td><code>auth_provider_id</code></td><td>Provider 侧唯一 ID（Google sub / SSO NameID）</td></tr>
+          <tr><td><code>organization_id</code></td><td>FK — 所属组织（SSO 自动同步，Google 首次登录分配）</td></tr>
+          <tr><td><code>role</code></td><td><code>ADMIN</code> / <code>PROJECT_OWNER</code> / <code>DEVELOPER</code></td></tr>
+          <tr><td><code>last_login_at</code></td><td>最近登录时间</td></tr>
+          <tr><td><code>status</code></td><td><code>ACTIVE</code> / <code>SUSPENDED</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>3.3 登录流程与时序</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>Google OAuth 流程</h3>
+      <div class="flow-row" style="font-size:12px">
+        <div class="flow-step">点击 Google 登录</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Google 授权页</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">回调 /auth/google/callback</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step success">JWT 签发</div>
+      </div>
+      <ol style="font-size:13px;margin-top:12px">
+        <li>前端渲染 <code>Sign In With Google</code> 按钮（Google Identity Services SDK）</li>
+        <li>用户授权后，前端获得 <code>credential</code>（ID Token），发送到后端</li>
+        <li>后端验证 Google ID Token 签名 + 提取 email / name / picture</li>
+        <li>域名白名单校验（可选）</li>
+        <li>按 email 查找或自动创建 User 记录（<code>auth_provider=GOOGLE</code>）</li>
+        <li>签发 JWT（Access Token 15min + Refresh Token 7d），写入 HttpOnly Cookie</li>
+        <li>前端按角色路由到对应页面</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>企业 SSO 流程</h3>
+      <div class="flow-row" style="font-size:12px">
+        <div class="flow-step">点击企业登录</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">SSO 登录页</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">SAML/OIDC 回调</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step success">JWT 签发 + 组织同步</div>
+      </div>
+      <ol style="font-size:13px;margin-top:12px">
+        <li>前端 [企业登录] 按钮 → 重定向到 SSO IdP 登录页</li>
+        <li>用户在 IdP 完成认证（含 MFA，由 IdP 控制）</li>
+        <li>IdP 回调后端 <code>/auth/sso/callback</code>，携带 SAML Assertion / OIDC Code</li>
+        <li>后端验证签名 → 提取 email / name / groups / department</li>
+        <li>按 email 查找或创建 User（<code>auth_provider=SSO</code>）</li>
+        <li><b>自动同步：</b>从 SSO groups 映射到 Organization / Group / Role</li>
+        <li>签发 JWT，同 Google 流程</li>
+      </ol>
+    </div>
+  </div>
+
+  <h3>3.4 Session 管理 &amp; 安全</h3>
+  <table>
+    <thead>
+      <tr><th>策略</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>Access Token</b></td><td>JWT，15 分钟有效，携带 user_id / role / organization_id，存入 HttpOnly Cookie</td></tr>
+      <tr><td><b>Refresh Token</b></td><td>不透明字符串，7 天有效，存入 HttpOnly Cookie，支持 Token Rotation（用一次换一个新的）</td></tr>
+      <tr><td><b>Token 刷新</b></td><td>Access Token 过期时前端 401 → 自动调 <code>/api/v1/auth/refresh</code> 获取新 Access Token</td></tr>
+      <tr><td><b>登出</b></td><td>清除 Cookie + 后端标记 Refresh Token 失效</td></tr>
+      <tr><td><b>域名白名单</b></td><td>Google OAuth 可配置允许的 email 域名列表，非白名单域名拒绝登录</td></tr>
+      <tr><td><b>登录审计</b></td><td>记录每次登录的 provider / IP / User-Agent / 时间，写入 audit_log</td></tr>
+      <tr><td><b>多设备</b></td><td>允许同一用户多设备同时在线，不互踢</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.5 MVP 落地策略</h3>
+  <div class="highlight">
+    <b>MVP 认证范围：</b><br/>
+    ① Google OAuth 2.0 — 完整实现（外网主力）<br/>
+    ② 用户名 + 密码 — 完整实现（开发 / 演示 / Hackathon 用）<br/>
+    ③ 企业 SSO — <b>仅预留接口</b>：后端定义 <code>AuthProvider</code> 接口和 <code>auth_provider</code> 字段，前端登录页预留 [企业登录] 按钮位（置灰 + "Coming Soon"），不实现具体 IdP 对接<br/>
+    ④ Session 管理 — JWT 双 Token + HttpOnly Cookie 完整实现
+  </div>
+
+  <h3>3.6 登录后路由规则</h3>
+  <table>
+    <thead>
+      <tr><th>角色</th><th>登录后默认入口</th><th>页面目标</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Admin</b></td>
+        <td><code>/admin/dashboard</code></td>
+        <td>全局运行状态、项目健康度、JIRA 分布和异常趋势</td>
+      </tr>
+      <tr>
+        <td><b>Project Owner</b></td>
+        <td><code>/admin/jira-board?project={projectKey}</code></td>
+        <td>直接进入自己负责项目的工单看板</td>
+      </tr>
+      <tr>
+        <td><b>Developer</b></td>
+        <td><code>/admin/my-tickets</code></td>
+        <td>查看分配给自己的 JIRA、待审 PR、待确认修复</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>3.7 Landing Page 线框（参考 jam.dev 版式）</h3>
+  <p class="small" style="margin-bottom:8px">整体版式参考 <b>jam.dev</b> 首页：悬浮胶囊导航、居中 Hero（荧光绿单强调色 + 细网格底纹）、灰副文案、左对齐大字 Feature 区配产品截图与能力 Chip、深色 Agents 区、大卡片 Testimonial、底部大 CTA 卡与多列 Footer。</p>
+
+  <div class="wire">
+    <div class="wire-title">首页版式 — 自上而下 9 个区块</div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">① 悬浮胶囊导航（滚动时吸顶）</div>
+    <div style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span>☰ &nbsp;[Logo]</span>
+      <span style="font-weight:700">AI Sherlock</span>
+      <span style="background:#a3e635;color:#1a2e05;padding:6px 16px;border-radius:999px;font-weight:700">免费开始</span>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">② Hero — 公告 pill → 大标题（关键词绿色高亮）→ 灰副文案 → 主 CTA + 数据行 → 双登录入口</div>
+    <div style="background:#fbfdff;border:1px solid #e2e8f0;border-radius:16px;padding:24px 16px;text-align:center;margin-bottom:12px;background-image:linear-gradient(#eef2f7 1px,transparent 1px),linear-gradient(90deg,#eef2f7 1px,transparent 1px);background-size:16px 16px">
+      <div style="display:inline-block;background:#fff;border:1px solid #ddd;border-radius:999px;padding:4px 14px;font-size:11px;margin-bottom:14px">⚡ New · AI 自动修复流水线上线 ↗</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.4">让每一个 Bug<br/>都<span style="background:#a3e635;border-radius:10px;padding:0 10px;display:inline-block;margin-top:4px">有迹可循</span></div>
+      <div style="margin:12px auto 0;font-size:12px;color:#667085;max-width:430px">AI 驱动的问题诊断平台 — 采集完整现场，自动补全日志与源码证据，LLM 定位根因，人工审批后一键修复、合并、发布 UAT。</div>
+      <div style="margin-top:14px"><span style="display:inline-block;background:#a3e635;color:#1a2e05;padding:10px 28px;border-radius:12px;font-size:13px;font-weight:700">免费开始</span></div>
+      <div style="margin-top:8px;font-size:10px;color:#94a3b8">★ 4.8 · 已服务 6+ 内部团队 · 累计诊断 1,000+ Case</div>
+      <div style="display:inline-flex;gap:10px;align-items:center;margin-top:10px">
+        <span style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 16px;font-size:11px"><b style="color:#4285f4">G</b> Sign in with Google</span>
+        <span style="background:#f1f5f9;border:1px solid #ddd;border-radius:8px;padding:6px 16px;font-size:11px;color:#999">企业登录 (Coming Soon)</span>
+      </div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">③ Trusted-by Logo 条（灰度）</div>
+    <div style="text-align:center;color:#94a3b8;font-size:11px;padding:8px 0;margin-bottom:12px">团队 A logo &nbsp;·&nbsp; 团队 B logo &nbsp;·&nbsp; 团队 C logo &nbsp;·&nbsp; 团队 D logo</div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">④ 大字陈述 + 产品截图卡（左对齐标题）</div>
+    <div style="padding:6px 4px 12px;margin-bottom:12px">
+      <div style="font-size:20px;font-weight:800;line-height:1.4">采集那一刻，<br/>还原整个故事。</div>
+      <div style="font-size:12px;color:#667085;margin-top:8px">一键提交 Bug，Network、Console、用户事件与设备信息随截图一起保存，工程师和 AI Agent 拿到即可开工。</div>
+      <div style="background:#fff;border:1px solid #ddd;border-radius:14px;padding:26px 12px;text-align:center;color:#94a3b8;font-size:11px;margin-top:12px">[ 产品截图：Chrome 插件报告单 — 截图批注 + 描述 + 步骤 ]</div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">⑤ Feature 交替区 × 4 — 每区 = 大标题 + 灰文案 + CTA + 视觉（首区带能力 Chip 云）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="wire-card">
+        <b>一键采集完整现场</b>
+        <div style="color:#667085;margin:4px 0">安装插件即可捕获，不打断用户操作。</div>
+        <div style="margin-top:6px">
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">↔ Network errors</span>
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">▣ Console logs</span>
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">✦ 用户事件</span>
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">🖥 设备信息</span>
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">✎ 截图批注</span>
+          <span style="background:#fff;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:10px;margin:2px">● rrweb 录屏</span>
+        </div>
+      </div>
+      <div class="wire-card"><b>AI 诊断，证据链完整</b><div style="color:#667085;margin-top:4px">自动关联日志系统与源码仓库补全 Evidence，LLM 输出根因与 Finding。</div><div style="margin-top:8px;color:#94a3b8">[ 视觉：诊断报告截图 ]</div></div>
+      <div class="wire-card"><b>人工审批 → LLM 自动修复</b><div style="color:#667085;margin-top:4px">确认诊断后一键下发 Devin 修复，产出分支与 PR，结果回写 JIRA。</div><div style="margin-top:8px;color:#94a3b8">[ 视觉：审批 → PR 流程截图 ]</div></div>
+      <div class="wire-card"><b>Merge 即发布 UAT</b><div style="color:#667085;margin-top:4px">PR 合并触发流水线，健康检查通过后 JIRA 自动流转 Done。</div><div style="margin-top:8px;color:#94a3b8">[ 视觉：流水线状态截图 ]</div></div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">⑥ 深色区 — For Agents（绿 eyebrow + 白大标题 + 深色卡）</div>
+    <div style="background:#0b1220;border-radius:14px;padding:18px 16px;color:#fff;margin-bottom:12px">
+      <div style="color:#a3e635;font-size:11px;font-weight:700">AI Sherlock for Agents</div>
+      <div style="font-size:18px;font-weight:800;margin:6px 0">给 Agent 可信的上下文，给人类可查的凭证。</div>
+      <div style="font-size:11px;color:#94a3b8;max-width:420px">Devin 修复会话读取完整 Case 证据链；每一次 AI 结论都能回溯到日志、源码与工作流凭证。</div>
+      <div style="display:inline-block;margin-top:10px;background:#1e293b;border-radius:10px;padding:10px 14px;font-size:11px;color:#e2e8f0">[ 深色卡：Devin 会话 / MCP 上下文示意 ] &nbsp; <u>Learn more ↗</u></div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">⑦ Testimonial 大卡（深蓝 / 深绿交替，大字引言 + 署名 + 团队 Logo）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="background:#16233d;color:#fff;border-radius:14px;padding:16px">
+        <div style="font-size:13px;font-weight:700;line-height:1.6">"一个可回溯的问题链接，胜过半小时的复现沟通。"</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:10px">QA 负责人 · 团队 A</div>
+      </div>
+      <div style="background:#12291f;color:#fff;border-radius:14px;padding:16px">
+        <div style="font-size:13px;font-weight:700;line-height:1.6">"带诊断报告的工单，修复速度快了一倍。"</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:10px">Developer · 团队 B</div>
+      </div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">⑧ 底部 CTA 大卡 — 标题 + 用户数据 + 次按钮 + 主按钮（后方彩色斜 pills）</div>
+    <div style="background:#fff;border:1px solid #ddd;border-radius:16px;padding:22px 16px;text-align:center;margin-bottom:10px;position:relative">
+      <div style="font-size:20px;font-weight:800;line-height:1.4">看看你的团队<br/>能把修复提速多少</div>
+      <div style="font-size:12px;color:#667085;margin-top:8px">500+ 内部用户正在使用</div>
+      <div style="display:grid;gap:8px;max-width:280px;margin:14px auto 0">
+        <div style="background:#f1f5f9;border:1px solid #ddd;border-radius:10px;padding:8px;font-size:12px">联系平台组</div>
+        <div style="background:#a3e635;color:#1a2e05;border-radius:10px;padding:8px;font-size:12px;font-weight:700">免费开始</div>
+      </div>
+      <div style="position:absolute;bottom:-8px;left:16px;transform:rotate(-6deg);background:#fde047;border-radius:999px;padding:4px 12px;font-size:10px">线上问题</div>
+      <div style="position:absolute;bottom:-8px;left:38%;transform:rotate(3deg);background:#d8b4fe;border-radius:999px;padding:4px 12px;font-size:10px">交互反馈</div>
+      <div style="position:absolute;bottom:-8px;right:16px;transform:rotate(-4deg);background:#93c5fd;border-radius:999px;padding:4px 12px;font-size:10px">后端异常</div>
+    </div>
+
+    <div style="color:#94a3b8;font-size:10px;margin-bottom:4px">⑨ Footer — 三列链接 + 法务行</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px">
+      <div><b>产品</b><div style="color:#667085;margin-top:4px">功能 · 工作流 · 插件下载 · 更新日志</div></div>
+      <div><b>资源</b><div style="color:#667085;margin-top:4px">文档 · API · 系统状态</div></div>
+      <div><b>团队</b><div style="color:#667085;margin-top:4px">关于 · 联系我们</div></div>
+    </div>
+    <div style="text-align:center;color:#94a3b8;font-size:10px;margin-top:12px">© AI Sherlock 2026 · 隐私条款 · 服务条款</div>
+  </div>
+
+  <h3 style="margin-top:20px">3.8 jam.dev 版式要点 → AI Sherlock 落地映射</h3>
+  <table>
+    <thead>
+      <tr><th>jam.dev 版式模式</th><th>AI Sherlock 落地方式</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>单一荧光绿强调色（#A3E635），黑白灰为基底</td>
+        <td>整站只用一个强调色：主 CTA、Hero 关键词高亮、深色区 eyebrow 统一品牌绿；替换原方案中的紫色渐变 Hero</td>
+      </tr>
+      <tr>
+        <td>悬浮胶囊 Nav，只有 Logo + 单一 CTA</td>
+        <td>导航只保留「免费开始」一个按钮，点击唤起登录弹层（§3.1 双通道：Google / 企业 SSO）；平铺菜单收敛进 Footer</td>
+      </tr>
+      <tr>
+        <td>公告 pill（"New: Jam CLI"）</td>
+        <td>发版公告位：新能力上线（如自动修复流水线、rrweb 录制），可外链到发布说明</td>
+      </tr>
+      <tr>
+        <td>Hero 关键词绿色高亮 pill + 评分/用户数行</td>
+        <td>主标题关键词高亮；评分行替换为内部采用数据（团队数、累计 Case 数），由 Dashboard 统计接口提供</td>
+      </tr>
+      <tr>
+        <td>Trusted-by Logo 条</td>
+        <td>接入团队 Logo 墙（灰度处理），需行政确认哪些团队可对外展示</td>
+      </tr>
+      <tr>
+        <td>左对齐大字陈述 + 产品截图卡</td>
+        <td>"采集那一刻，还原整个故事。" + 插件报告单真实截图（含批注）</td>
+      </tr>
+      <tr>
+        <td>Feature 区能力 Chip 云（Network errors / Console logs…）</td>
+        <td>采集能力 Chip：Network / Console / 用户事件 / 设备信息 / 截图批注 / rrweb 录屏</td>
+      </tr>
+      <tr>
+        <td>深色 "Jam for agents" 区</td>
+        <td>"AI Sherlock for Agents"：Devin 修复会话、MCP 上下文输出，强调结论可回溯</td>
+      </tr>
+      <tr>
+        <td>深色大卡 Testimonial</td>
+        <td>内部团队负责人引言；MVP 先用占位文案，上线后替换真实反馈</td>
+      </tr>
+      <tr>
+        <td>底部 CTA 大卡 + 彩色斜 pills + 双按钮</td>
+        <td>次按钮「联系平台组」+ 主按钮「免费开始」；斜 pills 换为问题类型（线上问题 / 交互反馈 / 后端异常）</td>
+      </tr>
+      <tr>
+        <td>三列 Footer（产品/公司/连接）+ 法务行</td>
+        <td>产品 / 资源 / 团队 三列 + 隐私条款；企业内网部署时法务行按公司规范调整</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="highlight">
+    <b>首页定位：</b>未登录时把中台首页当作整个项目的官网介绍页，承担产品介绍、能力说明、流程展示和登录入口四个职责；登录以后再进入真正的管理控制台。版式对齐 jam.dev：单强调色、大字号、留白充足、以真实产品截图建立信任。登录入口收敛为导航单一 CTA（唤起双通道登录弹层），Hero 下方保留 Google / 企业 SSO 直达按钮。
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 04  ADMIN CONSOLE OVERVIEW -->
+<!-- ============================================================ -->
+<section id="admin" class="section">
+  <div class="section-title"><div class="num">04</div><div><h2>Admin 控制台总览</h2><p class="section-intro">登录后的管理中枢，按功能域划分为五个核心模块。</p></div></div>
+
+  <h3>4.1 控制台导航结构</h3>
+  <table>
+    <thead>
+      <tr><th>模块</th><th>路由</th><th>核心功能</th><th>面向角色</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Dashboard</b></td>
+        <td><code>/admin/dashboard</code></td>
+        <td>全局统计概览：Case 趋势、诊断成功率、JIRA 分布、Top 异常服务</td>
+        <td>Admin / Owner</td>
+      </tr>
+      <tr>
+        <td><b>项目管理</b></td>
+        <td><code>/admin/projects</code></td>
+        <td>项目注册、仓库绑定、日志系统配置、Owner 指定、JIRA Project 映射</td>
+        <td>Admin</td>
+      </tr>
+      <tr>
+        <td><b>JIRA 看板</b></td>
+        <td><code>/admin/jira-board</code></td>
+        <td>按项目维度展示 JIRA 工单列表，集成 LLM 分析结果、修复状态、PR 链接</td>
+        <td>Admin / Owner / Dev</td>
+      </tr>
+      <tr>
+        <td><b>Case 详情</b></td>
+        <td><code>/admin/cases/{caseKey}</code></td>
+        <td>单个 Case 的完整证据链：Context → Evidence → Findings → JIRA → PR</td>
+        <td>All</td>
+      </tr>
+      <tr>
+        <td><b>系统设置</b></td>
+        <td><code>/admin/settings</code></td>
+        <td>用户管理、Capability Profile、LLM Provider 配置、通知规则</td>
+        <td>Admin</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 Dashboard 统计指标</h3>
+  <div class="grid grid-4">
+    <div class="card" style="text-align:center">
+      <div class="small">本周 Case 总数</div>
+      <div class="kpi">--</div>
+      <div class="small">↑ 较上周</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="small">AI 诊断成功率</div>
+      <div class="kpi" style="color:var(--green)">--%</div>
+      <div class="small">COMPLETED / TOTAL</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="small">平均诊断耗时</div>
+      <div class="kpi">--s</div>
+      <div class="small">从提交到 Finding 产出</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="small">自动修复成功率</div>
+      <div class="kpi" style="color:var(--primary)">--%</div>
+      <div class="small">PR Merged / PR Created</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:16px">
+    <div class="card">
+      <h3>Case 趋势图</h3>
+      <p class="small">按日/周维度展示 Case 提交量、Finding 产出量、JIRA 创建量。支持按项目、环境、严重程度筛选。</p>
+    </div>
+    <div class="card">
+      <h3>Top 异常服务 / API</h3>
+      <p class="small">按 Finding 出现频率排列 Top 10 的后端服务和前端模块，快速识别系统性问题。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 05  PLATFORM MANAGEMENT -->
+<!-- ============================================================ -->
+<section id="platform" class="section">
+  <div class="section-title"><div class="num">05</div><div><h2>平台管理 — 源码仓库 &amp; 日志系统绑定</h2><p class="section-intro">中台的核心差异化能力：将分散的源码仓库、日志系统、JIRA Project 绑定到统一的项目维度下。</p></div></div>
+
+  <h3>5.1 项目注册与配置</h3>
+  <p>每个"项目"是中台的一等公民，承载以下绑定关系：</p>
+  <table>
+    <thead>
+      <tr><th>配置项</th><th>说明</th><th>示例</th><th>必填</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>项目 Key</b></td>
+        <td>全局唯一标识，用于 Case 路由和 URL</td>
+        <td><code>account-center</code></td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>项目名称</b></td>
+        <td>人类可读名称</td>
+        <td>账户中心</td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>项目 Owner</b></td>
+        <td>负责人，JIRA 默认 Assignee</td>
+        <td>zhang.san@company.com</td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>前端仓库</b></td>
+        <td>前端代码仓库（可多个，对应 MFE 子应用）</td>
+        <td><code>fe/account-web</code>, <code>fe/customer-portal</code></td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>后端仓库</b></td>
+        <td>后端微服务仓库（可多个）</td>
+        <td><code>be/account-ms</code>, <code>be/customer-ms</code></td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>URL → 服务映射</b></td>
+        <td>前端路由或 API Path 到服务的映射规则</td>
+        <td><code>/api/account/** → account-ms</code></td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>日志索引</b></td>
+        <td>Elastic 日志索引 Pattern</td>
+        <td><code>account-ms-*</code></td>
+        <td><span class="tag a">推荐</span></td>
+      </tr>
+      <tr>
+        <td><b>JIRA Project Key</b></td>
+        <td>该项目对应的 JIRA Project</td>
+        <td><code>ACCOUNT</code></td>
+        <td><span class="tag r">是</span></td>
+      </tr>
+      <tr>
+        <td><b>JIRA Issue Type</b></td>
+        <td>创建工单时使用的 Issue Type</td>
+        <td><code>Bug</code>（默认）/ <code>Task</code></td>
+        <td><span class="tag a">可配</span></td>
+      </tr>
+      <tr>
+        <td><b>UAT 发布 Pipeline</b></td>
+        <td>Merge 后自动触发的 CI/CD Pipeline ID</td>
+        <td>Jenkins Job: <code>account-ms-deploy-uat</code></td>
+        <td><span class="tag a">推荐</span></td>
+      </tr>
+      <tr>
+        <td><b>Capability Profile</b></td>
+        <td>AI 诊断、源码分析、自动修复等能力开关</td>
+        <td>AI Diagnosis: ON, Auto Fix: ON</td>
+        <td><span class="tag a">可配</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>5.2 源码仓库绑定详情</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>仓库绑定流程</h3>
+      <ol>
+        <li>Admin 在中台填写 Bitbucket 仓库地址（Project + Repo slug）</li>
+        <li>中台调用 Bitbucket API 验证仓库可达性（<code>GET /rest/api/1.0/projects/{p}/repos/{r}</code>）</li>
+        <li>获取默认分支、最近 Tag/Commit，缓存仓库元信息</li>
+        <li>配置 URL Pattern → 仓库的映射规则（支持 Ant-style 通配符）</li>
+        <li>配置 Build Version → Git Commit 的映射方式（Tag / Commit Hash / CI Build Number）</li>
+        <li>保存绑定关系，后续 Case 自动使用该映射进行源码定位</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>日志系统绑定流程</h3>
+      <ol>
+        <li>Admin 填写 Elastic 索引 Pattern（如 <code>account-ms-*</code>）</li>
+        <li>中台调用 Elastic API 验证索引存在且可查询</li>
+        <li>配置日志字段映射：
+          <ul>
+            <li>时间字段：<code>@timestamp</code></li>
+            <li>级别字段：<code>level</code></li>
+            <li>TraceId 字段：<code>traceId</code> / <code>transactionId</code></li>
+            <li>消息字段：<code>message</code></li>
+            <li>异常栈字段：<code>exception.stack_trace</code></li>
+          </ul>
+        </li>
+        <li>配置关联的服务名称（用于 Finding 路由）</li>
+        <li>保存绑定，Evidence Resolver 自动使用</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <b>Service Registry 数据模型复用：</b>中台的项目管理直接操作后端 <code>service_registry</code> 表，与后端技术设计文档 §10 的 URL→Service→Repo→JIRA 映射完全对齐。前端多仓 MFE + Qiankun 场景下，一个项目可绑定多个前端仓库，通过子应用路由前缀区分。
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 06  JIRA PROJECT BOARD -->
+<!-- ============================================================ -->
+<section id="jira-board" class="section">
+  <div class="section-title"><div class="num">06</div><div><h2>JIRA 项目看板 — 按项目维度汇总</h2><p class="section-intro">中台的核心日常界面：以项目为维度展示 JIRA 工单列表，每条工单聚合了诊断信息、LLM 分析结果、修复状态和 PR 链接。</p></div></div>
+
+  <h3>6.1 看板结构</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>项目选择器</h3>
+      <ul>
+        <li>顶部下拉框切换项目，显示当前项目名 + Owner + 工单统计</li>
+        <li>Admin 可见所有项目，Owner/Dev 仅可见所属项目</li>
+        <li>支持"全部项目"聚合视图（Admin only）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>筛选 &amp; 搜索</h3>
+      <ul>
+        <li><b>状态筛选：</b>Open / In Progress / Pending Review / Done / 全部</li>
+        <li><b>类型筛选：</b>Frontend Finding / Backend Finding / Integration</li>
+        <li><b>严重程度：</b>Critical / Major / Minor</li>
+        <li><b>关键词搜索：</b>标题、Case Key、Finding Key</li>
+        <li><b>时间范围：</b>今日 / 本周 / 本月 / 自定义</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>6.2 工单列表字段</h3>
+  <table>
+    <thead>
+      <tr><th>列名</th><th>数据来源</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>JIRA Key</b></td>
+        <td>JIRA API</td>
+        <td>可点击跳转到 JIRA 详情页（新窗口打开）</td>
+      </tr>
+      <tr>
+        <td><b>标题</b></td>
+        <td>Finding.title</td>
+        <td>Finding 标题 + 严重程度 Tag</td>
+      </tr>
+      <tr>
+        <td><b>类型</b></td>
+        <td>Finding.finding_type</td>
+        <td><span class="tag b">FE</span> / <span class="tag g">BE</span> / <span class="tag a">INT</span></td>
+      </tr>
+      <tr>
+        <td><b>Assignee</b></td>
+        <td>JIRA API</td>
+        <td>默认 = 项目 Owner；可手动转派</td>
+      </tr>
+      <tr>
+        <td><b>LLM 分析</b></td>
+        <td>Diagnosis Run</td>
+        <td>
+          <span class="tag p">已分析</span> / <span class="tag a">分析中</span> / <span class="tag r">失败</span><br/>
+          点击展开 LLM 分析摘要（Root Cause + Confidence + Evidence Chain）
+        </td>
+      </tr>
+      <tr>
+        <td><b>修复状态</b></td>
+        <td>fix_pipeline 表</td>
+        <td>
+          <span class="tag a">待审批</span> →
+          <span class="tag b">修复中</span> →
+          <span class="tag p">PR 已创建</span> →
+          <span class="tag g">已 Merge</span> →
+          <span class="tag g">UAT 已发布</span>
+        </td>
+      </tr>
+      <tr>
+        <td><b>PR 链接</b></td>
+        <td>fix_pipeline.pr_url</td>
+        <td>Bitbucket PR URL，可直接跳转</td>
+      </tr>
+      <tr>
+        <td><b>Case Key</b></td>
+        <td>diagnosis_case.case_key</td>
+        <td>关联的原始 Case，可跳转 Case 详情页</td>
+      </tr>
+      <tr>
+        <td><b>创建时间</b></td>
+        <td>jira_ticket.created_at</td>
+        <td>工单创建时间</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>6.2A JIRA 链接列表视图</h3>
+  <p>除了完整表格看板，中台还需要提供一个更轻量的 <mark class="key">JIRA 链接列表视图</mark>，方便项目 Owner、研发负责人或周会场景快速复制链接、批量跳转和按项目分发。这个视图以项目为第一层分组，分组下只展示最关键的链接信息，不重复展开完整证据。</p>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>说明</th><th>展示规则</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>项目名 / Project Key</b></td>
+        <td>JIRA 链接列表的分组头</td>
+        <td>默认按项目聚合，可折叠，可显示该项目 Owner、Open 数、待审批数</td>
+      </tr>
+      <tr>
+        <td><b>JIRA Key 链接</b></td>
+        <td>指向 JIRA Issue 的主链接</td>
+        <td>点击新窗口打开 JIRA；支持一键复制完整 URL</td>
+      </tr>
+      <tr>
+        <td><b>标题</b></td>
+        <td>Finding 标题或 JIRA Summary</td>
+        <td>超过两行省略，Hover 查看全文</td>
+      </tr>
+      <tr>
+        <td><b>默认 Assignee</b></td>
+        <td>由项目 Owner 自动带出</td>
+        <td>创建工单时自动赋值；若后续转派，列表显示当前 Assignee + 原始 Owner</td>
+      </tr>
+      <tr>
+        <td><b>分析状态</b></td>
+        <td>LLM 是否已产出分析结论</td>
+        <td>未分析 / 分析中 / 已分析 / 人工确认 / 已拒绝</td>
+      </tr>
+      <tr>
+        <td><b>PR 链接</b></td>
+        <td>修复后生成的 Pull Request</td>
+        <td>未创建时显示 <code>—</code>，创建后可点击跳转到代码平台</td>
+      </tr>
+      <tr>
+        <td><b>UAT 状态</b></td>
+        <td>Merge 后自动发布结果</td>
+        <td>待发布 / 发布中 / 成功 / 失败</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>生成规则：</b>JIRA 链接列表以项目为维度自动生成，默认排序规则为 <code>项目 → 状态优先级 → 严重程度 → 创建时间倒序</code>。默认 Assignee 为项目 Owner；如果项目配置了前后端细分 Owner，则按 Finding 命中的仓库类型自动选择对应 Owner。这个列表既是中台页面里的一个视图，也可以作为周报、群消息或邮件摘要的结构化输出来源。
+  </div>
+
+  <h3>6.3 JIRA 工单默认分配规则</h3>
+  <div class="highlight">
+    <b>核心规则：</b>所有由 AI Sherlock 自动创建的 JIRA 工单，默认 Assignee = 该项目的 Owner。
+    <ul style="margin-top:8px">
+      <li>Finding 归属前端仓库 → Assignee = 项目前端 Owner（若区分配置）</li>
+      <li>Finding 归属后端仓库 → Assignee = 项目后端 Owner（若区分配置）</li>
+      <li>未配置细分 Owner → 统一分配给项目 Owner</li>
+      <li>Owner 可在中台或 JIRA 中手动转派给具体 Developer</li>
+    </ul>
+  </div>
+
+  <h3>6.4 JIRA 工单内 LLM 分析结果展示</h3>
+  <p>在 JIRA 工单行的"LLM 分析"列，点击 [展开] 后显示以下内联面板：</p>
+  <div class="card" style="background:#f8faff;border-style:dashed">
+    <h3>LLM 分析面板（内联展开）</h3>
+    <table>
+      <tbody>
+        <tr><td style="width:140px;font-weight:700">Root Cause</td><td>AI 生成的根因描述（1-3 句话）</td></tr>
+        <tr><td style="font-weight:700">Confidence</td><td>AI 置信度（0-100%）+ 系统验证置信度</td></tr>
+        <tr><td style="font-weight:700">定位信息</td><td>仓库 / 文件路径 / 方法名 / 行号范围</td></tr>
+        <tr><td style="font-weight:700">推荐修复</td><td>AI 推荐的最小修复方案描述</td></tr>
+        <tr><td style="font-weight:700">Evidence Chain</td><td>证据链引用列表（CTX-xxx → EVD-xxx → FND-xxx），可点击跳转</td></tr>
+        <tr><td style="font-weight:700">操作按钮</td><td>
+          <code>[查看详情]</code> 跳转 Case 详情页 &nbsp;
+          <code>[批准修复]</code> 触发自动修复流程 &nbsp;
+          <code>[拒绝]</code> 标记为不修复
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 07  LLM WORKFLOW -->
+<!-- ============================================================ -->
+<section id="llm-workflow" class="section">
+  <div class="section-title"><div class="num">07</div><div><h2>LLM 诊断分析 Workflow</h2><p class="section-intro">从 Case 入库到 JIRA 展示的完整诊断流程，复用后端技术设计文档的 Diagnosis Orchestrator。</p></div></div>
+
+  <h3>7.1 端到端 Workflow</h3>
+  <div class="flow-row">
+    <div class="flow-step active">插件上报</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">后端接收 &amp; 解析</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">Evidence 补全</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">LLM 诊断</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">Finding 生成</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">JIRA 创建</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">中台展示</div>
+  </div>
+
+  <h3>7.2 各阶段详情</h3>
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>触发条件</th><th>处理逻辑</th><th>产出</th><th>中台可见信息</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>① 接收解析</b></td>
+        <td>Chrome 插件 POST /api/v1/cases</td>
+        <td>校验 schema → 标准化字段 → 脱敏 → 持久化 Context Events</td>
+        <td>Case + ContextEvents</td>
+        <td>Case 详情页展示原始上报信息</td>
+      </tr>
+      <tr>
+        <td><b>② Evidence 补全</b></td>
+        <td>异常 Context 触发 Resolver</td>
+        <td>URL→Service→日志查询 + Stack→Repo→源码截取 + 映射关系补全</td>
+        <td>Evidence 记录</td>
+        <td>证据链可视化（Context → Evidence 图谱）</td>
+      </tr>
+      <tr>
+        <td><b>③ LLM 诊断</b></td>
+        <td>Evidence 补全完成</td>
+        <td>构建 DiagnosisContext → 提交 Devin/LLM → 轮询结果 → 验证 Finding 引用</td>
+        <td>Diagnosis Run + Findings</td>
+        <td>LLM 分析面板（Root Cause / Confidence / 定位 / 修复建议）</td>
+      </tr>
+      <tr>
+        <td><b>④ Finding 生成</b></td>
+        <td>LLM 返回 Structured Output</td>
+        <td>解析 Findings → 验证 repo/file/line → 计算 system_confidence → 拆分前后端</td>
+        <td>Finding 记录（含 verification_status）</td>
+        <td>每个 Finding 一行，显示类型/定位/置信度</td>
+      </tr>
+      <tr>
+        <td><b>⑤ JIRA 创建</b></td>
+        <td>Finding 验证通过 + 创建策略 = AUTO</td>
+        <td>按 Finding 逐个创建 JIRA Issue → 写入分析报告 → Assignee = Owner</td>
+        <td>JIRA Ticket 记录</td>
+        <td>JIRA 看板新增工单，内联展示 LLM 分析</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>7.3 LLM 分析结果在中台的呈现层次</h3>
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>Level 1 — 列表摘要</h3>
+      <p class="small">JIRA 看板中一行显示：状态 Tag + Confidence 百分比 + Root Cause 第一句话。快速扫描。</p>
+    </div>
+    <div class="card">
+      <h3>Level 2 — 内联展开</h3>
+      <p class="small">点击展开后显示完整 Root Cause、推荐修复、Evidence Chain 引用列表、操作按钮。不离开当前页面。</p>
+    </div>
+    <div class="card">
+      <h3>Level 3 — Case 详情页</h3>
+      <p class="small">跳转 Case 详情页，展示完整的 Context 原始数据、全部 Evidence、LLM Prompt &amp; Raw Response、Finding 详情。</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>JIRA 工单内容结构（与后端设计对齐）：</b><br/>
+    Description 字段 = 原始问题描述 + 分隔线 + 自动生成的分析报告（Summary / Evidence Overview / FE Analysis / BE Analysis / Conclusion / Recommended Fix）。<br/>
+    Labels = <code>AI-SHERLOCK</code>, <code>Frontend</code>/<code>Backend</code>, 应用名, 环境。<br/>
+    附件 = 截图 / 录屏 / Evidence 详情链接（指向中台 Case 详情页）。
+  </div>
+
+  <h3>7.4 JIRA Workflow 状态映射</h3>
+  <table>
+    <thead>
+      <tr><th>JIRA Workflow 状态</th><th>含义</th><th>中台对应动作</th><th>下一步</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Open</b></td>
+        <td>工单刚创建，等待 LLM 诊断或等待人处理</td>
+        <td>中台展示基础信息、证据链、分析状态</td>
+        <td>等待分析完成或人工查看</td>
+      </tr>
+      <tr>
+        <td><b>Analysis Ready</b></td>
+        <td>LLM 已给出分析结论，等待人工确认</td>
+        <td>显示 <code>[批准修复]</code> / <code>[拒绝]</code> / <code>[查看详情]</code></td>
+        <td>Owner 或 Developer 审阅结论</td>
+      </tr>
+      <tr>
+        <td><b>Fix Approved</b></td>
+        <td>人工认可分析结果，允许自动修复</td>
+        <td>中台创建修复 Session，推进到 fix_pipeline</td>
+        <td>LLM 修改代码并创建 PR</td>
+      </tr>
+      <tr>
+        <td><b>In Review</b></td>
+        <td>PR 已创建，等待代码审阅</td>
+        <td>JIRA 中展示 PR 链接、Diff 摘要、审阅意见摘要</td>
+        <td>人工 Review / Approve / Request Changes</td>
+      </tr>
+      <tr>
+        <td><b>Ready to Merge</b></td>
+        <td>PR 已通过审阅</td>
+        <td>中台同步 PR 审批通过状态</td>
+        <td>人工 Merge 或使用代码平台的自动 Merge</td>
+      </tr>
+      <tr>
+        <td><b>In Deploy</b></td>
+        <td>PR 已 Merge，UAT 发布进行中</td>
+        <td>中台监听 CI/CD 结果并更新工单</td>
+        <td>等待发布成功或失败</td>
+      </tr>
+      <tr>
+        <td><b>Done</b></td>
+        <td>UAT 发布完成，闭环结束</td>
+        <td>中台沉淀整条 Case → JIRA → PR → UAT 链路</td>
+        <td>归档与统计</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 08  AUTO FIX -->
+<!-- ============================================================ -->
+<section id="auto-fix" class="section">
+  <div class="section-title"><div class="num">08</div><div><h2>人工审批 → LLM 自动修复 &amp; PR</h2><p class="section-intro">JIRA 工单中的 LLM 分析结果经人工确认后，一键触发 LLM 自动修改源码并创建 Pull Request。</p></div></div>
+
+  <h3>8.1 审批 &amp; 触发流程</h3>
+  <div class="flow-row">
+    <div class="flow-step">LLM 分析完成</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step warn">待审批</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">人工 [批准修复]</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">LLM 修复 Session</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">创建 PR</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">PR 回写 JIRA</div>
+  </div>
+
+  <h3>8.2 详细流程说明</h3>
+  <table>
+    <thead>
+      <tr><th>步骤</th><th>执行者</th><th>具体操作</th><th>产出 / 状态变更</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>① 人工审批</b></td>
+        <td>Project Owner / Developer</td>
+        <td>
+          在中台 JIRA 看板或 JIRA 工单详情页，审阅 LLM 分析结果。<br/>
+          点击 <code>[批准修复]</code> 按钮，表示认同 AI 的 Root Cause 定位和修复建议。
+        </td>
+        <td>fix_pipeline 状态 → <code>APPROVED</code></td>
+      </tr>
+      <tr>
+        <td><b>② 构建修复上下文</b></td>
+        <td>中台后端</td>
+        <td>
+          从 Finding + Evidence 中提取修复所需上下文：<br/>
+          • 目标仓库 / 分支 / Commit<br/>
+          • 问题文件路径 + 行号范围<br/>
+          • Root Cause 描述 + 推荐修复方案<br/>
+          • 相关 Evidence（日志片段、源码窗口）<br/>
+          • 同文件关联方法签名
+        </td>
+        <td>FixContext 构建完成</td>
+      </tr>
+      <tr>
+        <td><b>③ 启动 LLM 修复 Session</b></td>
+        <td>中台后端 → Devin API</td>
+        <td>
+          调用 Devin v3 API 创建新的修复 Session（区别于诊断 Session）：<br/>
+          • <b>Prompt：</b>明确告知修复目标、约束（仅修改指定文件/方法范围）、代码风格要求<br/>
+          • <b>Repos：</b>仅授权目标仓库<br/>
+          • <b>Structured Output：</b>要求返回修改的文件列表 + diff summary<br/>
+          • <b>Tags：</b><code>fix:{findingKey}</code>
+        </td>
+        <td>fix_pipeline 状态 → <code>FIXING</code><br/>provider_session_id 记录</td>
+      </tr>
+      <tr>
+        <td><b>④ LLM 执行修复</b></td>
+        <td>Devin / LLM</td>
+        <td>
+          LLM 在授权的仓库范围内：<br/>
+          • 检出目标分支（从 default branch 创建 <code>fix/{findingKey}</code> 分支）<br/>
+          • 定位问题代码<br/>
+          • 实施修复<br/>
+          • 运行相关单测（若存在）<br/>
+          • Commit 修改
+        </td>
+        <td>Git 分支 + Commit</td>
+      </tr>
+      <tr>
+        <td><b>⑤ 创建 Pull Request</b></td>
+        <td>中台后端 → Bitbucket API</td>
+        <td>
+          修复完成后，中台自动：<br/>
+          • 调用 Bitbucket API 创建 PR（<code>fix/{findingKey}</code> → <code>main</code>）<br/>
+          • PR Title = <code>[AI-SHERLOCK] {Finding.title}</code><br/>
+          • PR Description = Root Cause + Fix Summary + Evidence Chain + Case Link<br/>
+          • Reviewer = 项目 Owner + 关联开发者
+        </td>
+        <td>fix_pipeline 状态 → <code>PR_CREATED</code><br/>pr_url 记录</td>
+      </tr>
+      <tr>
+        <td><b>⑥ PR 回写 JIRA</b></td>
+        <td>中台后端 → JIRA API</td>
+        <td>
+          在对应 JIRA 工单中添加 Comment：<br/>
+          • PR 链接<br/>
+          • 修改文件列表 + Diff 摘要<br/>
+          • 提醒 Reviewer 审阅<br/>
+          同时更新 JIRA 状态为 <code>In Review</code>
+        </td>
+        <td>JIRA Comment + 状态更新</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>8.3 修复 Session 的 Prompt 策略</h3>
+  <div class="card" style="background:#f8faff;border-style:dashed">
+    <h3>修复 Prompt 模板（核心要素）</h3>
+    <pre><code>## 修复任务
+
+你是 AI Sherlock 自动修复引擎。请根据以下诊断结果修复代码缺陷。
+
+### 问题定位
+- **仓库：** {repository}
+- **分支：** {branch} (基于 commit {commitHash})
+- **文件：** {filePath}
+- **方法：** {methodName}
+- **行号范围：** L{lineStart} - L{lineEnd}
+
+### Root Cause
+{rootCauseSummary}
+
+### 推荐修复方案
+{recommendedFix}
+
+### 相关证据
+{evidenceSnippets}
+
+### 约束
+1. **仅修改**上述指定的文件和方法范围，不得扩大修改面
+2. 保持现有代码风格（缩进、命名规范、import 顺序）
+3. 修复必须是**最小化变更** — 不要重构不相关的代码
+4. 如果存在相关单测，修复后确保测试通过
+5. 如果发现 Root Cause 分析有误或无法修复，请在 Structured Output 中说明原因
+
+### 输出要求（Structured Output）
+{
+  "status": "FIXED" | "CANNOT_FIX",
+  "modifiedFiles": [{ "path": "...", "diffSummary": "..." }],
+  "testResult": "PASS" | "FAIL" | "NO_TESTS",
+  "explanation": "...",
+  "cannotFixReason": "..." // 仅 CANNOT_FIX 时
+}</code></pre>
+  </div>
+
+  <h3>8.4 审批策略与安全控制</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>审批规则</h3>
+      <ul>
+        <li><b>必须人工审批：</b>LLM 修复必须经过 Owner 或授权 Developer 点击 [批准修复] 后才执行</li>
+        <li><b>Confidence 阈值：</b>system_confidence &lt; 0.6 的 Finding 默认隐藏 [批准修复] 按钮，需 Owner 手动开启</li>
+        <li><b>批量审批：</b>Admin 可对同一项目下多个 Finding 批量审批（谨慎使用）</li>
+        <li><b>审批记录：</b>谁在什么时间批准，记录到 audit log</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>安全控制</h3>
+      <ul>
+        <li><b>仓库白名单：</b>LLM 修复 Session 仅可访问 Finding 关联的目标仓库</li>
+        <li><b>分支隔离：</b>修复在独立分支 <code>fix/{findingKey}</code> 上执行，不直接写 main</li>
+        <li><b>修改范围约束：</b>Prompt 明确限定文件/方法范围，LLM 超范围修改在 PR Review 中暴露</li>
+        <li><b>自动回滚：</b>若 LLM 修复 Session 超时或失败，自动清理临时分支</li>
+        <li><b>成本上限：</b>每个修复 Session 设置 max_acu_limit，防止 Token 失控</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.5 触发入口：命令与 Workflow</h3>
+  <p>人工确认 LLM 分析正确以后，触发自动修复不能只依赖一个页面按钮，还应该同时支持 <mark class="key">中台按钮</mark>、<mark class="key">JIRA Workflow Transition</mark> 和 <mark class="key">命令式触发</mark> 三种入口，这样能覆盖产品、研发和平台团队的不同工作习惯。</p>
+  <table>
+    <thead>
+      <tr><th>触发方式</th><th>入口位置</th><th>适用场景</th><th>触发结果</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>页面按钮</b></td>
+        <td>中台 JIRA 看板、Case 详情页</td>
+        <td>Owner 在浏览中台时直接确认</td>
+        <td>调用 <code>/api/v1/findings/{findingKey}/approve-fix</code></td>
+      </tr>
+      <tr>
+        <td><b>JIRA Workflow</b></td>
+        <td>JIRA Issue 的 Transition 按钮</td>
+        <td>研发习惯在 JIRA 内完成全部推进动作</td>
+        <td>Transition 到 <code>Fix Approved</code> 时由 Webhook 回调中台触发修复</td>
+      </tr>
+      <tr>
+        <td><b>命令触发</b></td>
+        <td>中台内命令菜单、快捷操作、后续可接 IM Bot</td>
+        <td>批量操作、自动化脚本、群里快速处理</td>
+        <td>执行统一编排命令，如 <code>approve-fix</code>、<code>retry-fix</code>、<code>deploy-uat</code></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 09  PR & JIRA -->
+<!-- ============================================================ -->
+<section id="pr-jira" class="section">
+  <div class="section-title"><div class="num">09</div><div><h2>PR 结果汇总 &amp; JIRA 联动</h2><p class="section-intro">所有 PR 的创建、审阅、Merge 状态集中展示在中台，并实时同步回 JIRA 工单。</p></div></div>
+
+  <h3>9.1 PR 状态机</h3>
+  <div class="flow-row">
+    <div class="flow-step">APPROVED</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">FIXING</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">PR_CREATED</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step warn">UNDER_REVIEW</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">MERGED</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">UAT_DEPLOYED</div>
+  </div>
+  <div class="flow-row" style="margin-top:4px">
+    <div style="width:340px"></div>
+    <div class="flow-step" style="background:var(--red-bg);color:var(--red);border-color:#f1c1bd">FIX_FAILED</div>
+    <span class="flow-arrow">/</span>
+    <div class="flow-step" style="background:var(--red-bg);color:var(--red);border-color:#f1c1bd">PR_REJECTED</div>
+    <span class="flow-arrow">→ 回到待审批</span>
+  </div>
+
+  <h3>9.2 PR → JIRA 实时同步</h3>
+  <table>
+    <thead>
+      <tr><th>PR 事件</th><th>JIRA 动作</th><th>中台动作</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>PR 创建</td>
+        <td>Add Comment: PR 链接 + 修改摘要</td>
+        <td>fix_pipeline → PR_CREATED，JIRA 看板显示 PR 链接</td>
+      </tr>
+      <tr>
+        <td>PR Review Comment</td>
+        <td>Add Comment: Review 意见摘要</td>
+        <td>更新 PR 审阅状态</td>
+      </tr>
+      <tr>
+        <td>PR Approved</td>
+        <td>Transition → Ready to Merge</td>
+        <td>fix_pipeline → PR_APPROVED</td>
+      </tr>
+      <tr>
+        <td>PR Merged</td>
+        <td>Transition → In Deploy</td>
+        <td>fix_pipeline → MERGED，触发 UAT 发布</td>
+      </tr>
+      <tr>
+        <td>PR Rejected / Closed</td>
+        <td>Add Comment: 拒绝原因</td>
+        <td>fix_pipeline → PR_REJECTED，可重新触发修复</td>
+      </tr>
+      <tr>
+        <td>UAT 部署成功</td>
+        <td>Transition → Done</td>
+        <td>fix_pipeline → UAT_DEPLOYED</td>
+      </tr>
+      <tr>
+        <td>UAT 部署失败</td>
+        <td>Add Comment: 部署失败日志摘要</td>
+        <td>fix_pipeline → DEPLOY_FAILED，通知 Owner</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>9.3 PR 状态 Webhook 集成</h3>
+  <div class="highlight">
+    <b>Bitbucket Webhook → 中台后端：</b><br/>
+    中台后端注册 Bitbucket Webhook，监听以下事件：
+    <code>pr:created</code>、<code>pr:reviewer:approved</code>、<code>pr:merged</code>、<code>pr:declined</code>、<code>pr:comment:added</code>。
+    收到事件后更新 <code>fix_pipeline</code> 状态，并调用 JIRA API 同步工单。<br/><br/>
+    <b>备选方案：</b>若 Webhook 不便配置，中台后端每 5 分钟轮询一次 Bitbucket PR API 获取状态变更。
+  </div>
+
+  <h3>9.4 PR 结果在 JIRA 中的汇总结构</h3>
+  <p>PR 不是只回一条链接到 JIRA，而是要把 <mark class="key">代码修改结果、审阅结论和发布状态</mark> 都集中沉淀在 JIRA 中，让 JIRA 真正成为问题闭环的单一工作台。这样研发负责人不需要来回切系统，也方便后续统计"哪些分析能修成、哪些 PR 被拒绝、哪些项目发布失败"。</p>
+  <table>
+    <thead>
+      <tr><th>JIRA 区块</th><th>写入内容</th><th>更新时机</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Issue Description</b></td>
+        <td>保留最新的 Root Cause、Evidence Chain、推荐修复、目标仓库与文件定位</td>
+        <td>LLM 分析完成或重跑后覆盖更新</td>
+      </tr>
+      <tr>
+        <td><b>Comments</b></td>
+        <td>PR 创建、Review 评论摘要、Merge 结果、UAT 发布结果</td>
+        <td>每个关键事件发生后追加</td>
+      </tr>
+      <tr>
+        <td><b>Remote Links</b></td>
+        <td>中台 Case 详情、PR 链接、CI/CD Pipeline 链接、UAT 地址</td>
+        <td>对应外部资源生成后立即写入</td>
+      </tr>
+      <tr>
+        <td><b>Labels / Custom Fields</b></td>
+        <td>项目、仓库类型、LLM 置信度档位、自动修复状态</td>
+        <td>建单时初始化，后续按状态机更新</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 10  UAT DEPLOY -->
+<!-- ============================================================ -->
+<section id="uat" class="section">
+  <div class="section-title"><div class="num">10</div><div><h2>Merge 后自动发布 UAT</h2><p class="section-intro">PR 合并到主分支后，全自动触发 UAT 环境部署，无需人工介入。</p></div></div>
+
+  <h3>10.1 发布流程</h3>
+  <div class="flow-row">
+    <div class="flow-step success">PR Merged</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">Webhook 触发</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">CI Build</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step active">Image Push</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">Deploy UAT</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">健康检查</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step success">JIRA Done</div>
+  </div>
+
+  <h3>10.2 发布 Pipeline 配置</h3>
+  <table>
+    <thead>
+      <tr><th>配置项</th><th>说明</th><th>示例</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>CI/CD 平台</b></td>
+        <td>项目使用的 CI/CD 系统</td>
+        <td>Jenkins / GitLab CI / GitHub Actions</td>
+      </tr>
+      <tr>
+        <td><b>Pipeline ID</b></td>
+        <td>UAT 部署 Job 名称 / Pipeline ID</td>
+        <td><code>account-ms-deploy-uat</code></td>
+      </tr>
+      <tr>
+        <td><b>触发方式</b></td>
+        <td>Merge 事件触发 or API 调用</td>
+        <td>Bitbucket Webhook → Jenkins API</td>
+      </tr>
+      <tr>
+        <td><b>部署目标</b></td>
+        <td>UAT 环境标识</td>
+        <td>OpenShift namespace: <code>account-ms-uat</code></td>
+      </tr>
+      <tr>
+        <td><b>健康检查</b></td>
+        <td>部署后的验证方式</td>
+        <td>HTTP GET <code>/health</code> + 冒烟测试</td>
+      </tr>
+      <tr>
+        <td><b>回滚策略</b></td>
+        <td>部署失败时的处理</td>
+        <td>自动回滚到上一版本 + 通知 Owner</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>10.3 中台触发发布的方式</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>方式 A — Webhook 直通（推荐）</h3>
+      <p class="small">
+        Bitbucket PR Merge 事件 → Bitbucket Webhook → CI/CD Pipeline 自动触发。<br/>
+        中台仅监听 Merge 事件更新状态，不介入 Pipeline 执行。<br/>
+        <b>优点：</b>延迟低，CI/CD 原生支持。<br/>
+        <b>适用：</b>已有成熟 CI/CD Pipeline 的项目。
+      </p>
+    </div>
+    <div class="card">
+      <h3>方式 B — 中台 API 触发</h3>
+      <p class="small">
+        Bitbucket PR Merge → 中台 Webhook → 中台调用 CI/CD API 触发部署。<br/>
+        中台作为调度中心，可在触发前做额外校验（如检查关联 Case 是否全部修复）。<br/>
+        <b>优点：</b>中台可编排多步骤发布逻辑。<br/>
+        <b>适用：</b>需要中台介入发布决策的场景。
+      </p>
+    </div>
+  </div>
+
+  <h3>10.4 发布结果回写</h3>
+  <div class="highlight">
+    <b>成功：</b>CI/CD Pipeline 完成后回调中台 Webhook → 中台更新 <code>fix_pipeline</code> 为 <code>UAT_DEPLOYED</code> → JIRA Transition → <code>Done</code> → 中台看板显示 ✅。<br/><br/>
+    <b>失败：</b>CI/CD 回调失败信息 → 中台更新为 <code>DEPLOY_FAILED</code> → JIRA Add Comment（含失败日志摘要）→ 通知 Owner 处理。
+  </div>
+
+  <h3>10.5 自动发布前置条件</h3>
+  <table>
+    <thead>
+      <tr><th>前置条件</th><th>校验方式</th><th>不满足时处理</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>PR 已 Merge</b></td>
+        <td>Webhook 或轮询获取代码平台最终状态</td>
+        <td>未 Merge 不触发 UAT</td>
+      </tr>
+      <tr>
+        <td><b>项目开启自动 UAT</b></td>
+        <td>检查 <code>project.capability_profile</code> 与发布配置</td>
+        <td>若关闭，则只回写"可手动发布"</td>
+      </tr>
+      <tr>
+        <td><b>CI/CD Pipeline 配置有效</b></td>
+        <td>项目配置校验 + 最近一次连通性检查</td>
+        <td>回写 JIRA Comment，提醒 Owner 补配置</td>
+      </tr>
+      <tr>
+        <td><b>必要质量门禁通过</b></td>
+        <td>至少满足编译成功、基础测试通过、镜像构建成功</td>
+        <td>进入 <code>DEPLOY_FAILED</code> 并中止后续动作</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 11  DATA MODEL -->
+<!-- ============================================================ -->
+<section id="data-model" class="section">
+  <div class="section-title"><div class="num">11</div><div><h2>数据模型扩展</h2><p class="section-intro">中台新增的数据表，与后端技术设计文档的现有模型无缝衔接。</p></div></div>
+
+  <h3>11.1 新增表 — user（统一身份）</h3>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>id</td><td>BIGSERIAL PK</td><td>主键</td></tr>
+      <tr><td>email</td><td>VARCHAR(255) UNIQUE NOT NULL</td><td>用户唯一标识（Google / SSO / 密码共用）</td></tr>
+      <tr><td>display_name</td><td>VARCHAR(200)</td><td>显示名称（从 Provider Profile 同步）</td></tr>
+      <tr><td>avatar_url</td><td>VARCHAR(500)</td><td>头像 URL</td></tr>
+      <tr><td>auth_provider</td><td>VARCHAR(20) NOT NULL</td><td>首次注册通道：<code>GOOGLE</code> / <code>SSO</code> / <code>PASSWORD</code></td></tr>
+      <tr><td>auth_provider_id</td><td>VARCHAR(255)</td><td>Provider 侧唯一 ID（Google sub / SSO NameID）</td></tr>
+      <tr><td>password_hash</td><td>VARCHAR(255)</td><td>密码哈希（仅 PASSWORD 通道使用，bcrypt）</td></tr>
+      <tr><td>organization_id</td><td>BIGINT FK</td><td>所属组织（SSO 自动同步，Google 首次登录分配）</td></tr>
+      <tr><td>role</td><td>VARCHAR(20) NOT NULL</td><td><code>ADMIN</code> / <code>PROJECT_OWNER</code> / <code>DEVELOPER</code></td></tr>
+      <tr><td>status</td><td>VARCHAR(20) DEFAULT 'ACTIVE'</td><td><code>ACTIVE</code> / <code>SUSPENDED</code></td></tr>
+      <tr><td>last_login_at</td><td>TIMESTAMPTZ</td><td>最近登录时间</td></tr>
+      <tr><td>created_at / updated_at</td><td>TIMESTAMPTZ</td><td>时间戳</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.2 新增表 — refresh_token</h3>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>id</td><td>BIGSERIAL PK</td><td>主键</td></tr>
+      <tr><td>user_id</td><td>BIGINT FK</td><td>所属用户</td></tr>
+      <tr><td>token_hash</td><td>VARCHAR(255) UNIQUE</td><td>Token 哈希（不存明文）</td></tr>
+      <tr><td>expires_at</td><td>TIMESTAMPTZ</td><td>过期时间（默认 7 天）</td></tr>
+      <tr><td>revoked</td><td>BOOLEAN DEFAULT false</td><td>是否已撤销</td></tr>
+      <tr><td>user_agent</td><td>VARCHAR(500)</td><td>登录设备 UA（审计用）</td></tr>
+      <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>创建时间</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.3 新增表 — project（项目管理）</h3>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>id</td><td>BIGSERIAL PK</td><td>主键</td></tr>
+      <tr><td>organization_id</td><td>BIGINT FK</td><td>所属组织</td></tr>
+      <tr><td>group_id</td><td>BIGINT FK</td><td>所属 Group</td></tr>
+      <tr><td>project_key</td><td>VARCHAR(64) UNIQUE</td><td>项目唯一标识</td></tr>
+      <tr><td>name</td><td>VARCHAR(200)</td><td>项目名称</td></tr>
+      <tr><td>owner_user_id</td><td>BIGINT FK</td><td>项目 Owner</td></tr>
+      <tr><td>jira_project_key</td><td>VARCHAR(32)</td><td>JIRA Project Key</td></tr>
+      <tr><td>jira_issue_type</td><td>VARCHAR(32) DEFAULT 'Bug'</td><td>默认 Issue Type</td></tr>
+      <tr><td>uat_pipeline_id</td><td>VARCHAR(200)</td><td>UAT 发布 Pipeline ID</td></tr>
+      <tr><td>uat_deploy_method</td><td>VARCHAR(32)</td><td>WEBHOOK_DIRECT / API_TRIGGER</td></tr>
+      <tr><td>capability_profile_id</td><td>BIGINT FK</td><td>能力配置</td></tr>
+      <tr><td>status</td><td>VARCHAR(20)</td><td>ACTIVE / ARCHIVED</td></tr>
+      <tr><td>created_at / updated_at</td><td>TIMESTAMPTZ</td><td>时间戳</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.4 新增表 — fix_pipeline（修复流水线）</h3>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>id</td><td>BIGSERIAL PK</td><td>主键</td></tr>
+      <tr><td>finding_id</td><td>BIGINT FK</td><td>关联 Finding</td></tr>
+      <tr><td>jira_ticket_id</td><td>BIGINT FK</td><td>关联 JIRA Ticket</td></tr>
+      <tr><td>project_id</td><td>BIGINT FK</td><td>所属项目</td></tr>
+      <tr><td>status</td><td>VARCHAR(32)</td><td>PENDING_APPROVAL / APPROVED / FIXING / FIX_FAILED / PR_CREATED / PR_APPROVED / PR_REJECTED / MERGED / UAT_DEPLOYED / DEPLOY_FAILED</td></tr>
+      <tr><td>approved_by</td><td>BIGINT FK</td><td>审批人</td></tr>
+      <tr><td>approved_at</td><td>TIMESTAMPTZ</td><td>审批时间</td></tr>
+      <tr><td>fix_provider</td><td>VARCHAR(32)</td><td>DEVIN / OTHER</td></tr>
+      <tr><td>fix_session_id</td><td>VARCHAR(200)</td><td>LLM 修复 Session ID</td></tr>
+      <tr><td>fix_branch</td><td>VARCHAR(200)</td><td>修复分支名</td></tr>
+      <tr><td>fix_commit_hash</td><td>VARCHAR(64)</td><td>修复 Commit</td></tr>
+      <tr><td>pr_url</td><td>VARCHAR(500)</td><td>Pull Request URL</td></tr>
+      <tr><td>pr_id</td><td>VARCHAR(64)</td><td>Bitbucket PR ID</td></tr>
+      <tr><td>deploy_url</td><td>VARCHAR(500)</td><td>UAT 部署地址</td></tr>
+      <tr><td>error_message</td><td>TEXT</td><td>失败原因</td></tr>
+      <tr><td><code>raw_fix_request JSONB</code></td><td>JSONB</td><td>发给 LLM 的修复 Prompt</td></tr>
+      <tr><td><code>raw_fix_response JSONB</code></td><td>JSONB</td><td>LLM 修复原始返回</td></tr>
+      <tr><td>created_at / updated_at</td><td>TIMESTAMPTZ</td><td>时间戳</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.5 新增表 — project_repository（项目-仓库绑定）</h3>
+  <table>
+    <thead>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>id</td><td>BIGSERIAL PK</td><td>主键</td></tr>
+      <tr><td>project_id</td><td>BIGINT FK</td><td>所属项目</td></tr>
+      <tr><td>repo_type</td><td>VARCHAR(16)</td><td>FRONTEND / BACKEND</td></tr>
+      <tr><td>provider</td><td>VARCHAR(32)</td><td>BITBUCKET / GITHUB</td></tr>
+      <tr><td>repo_project</td><td>VARCHAR(100)</td><td>Bitbucket Project Key</td></tr>
+      <tr><td>repo_slug</td><td>VARCHAR(100)</td><td>Bitbucket Repo Slug</td></tr>
+      <tr><td>default_branch</td><td>VARCHAR(100) DEFAULT 'main'</td><td>默认分支</td></tr>
+      <tr><td>url_patterns</td><td>TEXT[]</td><td>URL 匹配规则（Ant-style）</td></tr>
+      <tr><td>sub_app_key</td><td>VARCHAR(64)</td><td>MFE 子应用标识（Qiankun）</td></tr>
+      <tr><td>log_index_pattern</td><td>VARCHAR(200)</td><td>关联的 Elastic 索引 Pattern</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.6 现有表扩展</h3>
+  <table>
+    <thead>
+      <tr><th>表</th><th>新增字段</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>diagnosis_case</code></td>
+        <td>project_id BIGINT FK</td>
+        <td>关联到中台项目（与 group_id 并存，project 是更细粒度的组织单元）</td>
+      </tr>
+      <tr>
+        <td><code>diagnosis_finding</code></td>
+        <td>project_id BIGINT FK</td>
+        <td>关联到中台项目</td>
+      </tr>
+      <tr>
+        <td><code>jira_ticket</code></td>
+        <td>fix_pipeline_id BIGINT FK</td>
+        <td>关联修复流水线</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 12  API -->
+<!-- ============================================================ -->
+<section id="api" class="section">
+  <div class="section-title"><div class="num">12</div><div><h2>中台 API 设计</h2><p class="section-intro">中台后端新增的 REST API，与现有后端 API 合并部署。</p></div></div>
+
+  <h3>12.1 认证 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th><th>备注</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/auth/google</code></td><td>Google OAuth 登录（前端传 ID Token，后端验证 + 签发 JWT）</td><td>MVP</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/login</code></td><td>用户名 + 密码登录</td><td>MVP（开发用）</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/auth/sso/login</code></td><td>发起 SSO 登录（重定向到 IdP）</td><td>V2 预留</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/sso/callback</code></td><td>SSO 回调（验证 Assertion + 签发 JWT）</td><td>V2 预留</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/refresh</code></td><td>刷新 Access Token（Refresh Token Rotation）</td><td>MVP</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/logout</code></td><td>登出（清除 Cookie + 标记 Refresh Token 失效）</td><td>MVP</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/auth/me</code></td><td>获取当前登录用户信息 + 角色 + 所属项目</td><td>MVP</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.2 项目管理 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th><th>权限</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/projects</code></td><td>项目列表（支持分页、搜索）</td><td>All</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/projects</code></td><td>创建项目</td><td>Admin</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/projects/{projectKey}</code></td><td>项目详情（含仓库绑定、日志配置）</td><td>Admin / Owner</td></tr>
+      <tr><td>PUT</td><td><code>/api/v1/projects/{projectKey}</code></td><td>更新项目配置</td><td>Admin</td></tr>
+      <tr><td>DELETE</td><td><code>/api/v1/projects/{projectKey}</code></td><td>归档项目（软删除）</td><td>Admin</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/projects/{projectKey}/repositories</code></td><td>绑定仓库</td><td>Admin</td></tr>
+      <tr><td>DELETE</td><td><code>/api/v1/projects/{projectKey}/repositories/{repoId}</code></td><td>解绑仓库</td><td>Admin</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/projects/{projectKey}/validate</code></td><td>验证项目配置完整性（仓库可达、日志可查、JIRA 可连）</td><td>Admin</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.3 JIRA 看板 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th><th>权限</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/projects/{projectKey}/tickets</code></td><td>项目维度的 JIRA 工单列表（含 LLM 分析摘要、修复状态、PR 链接）</td><td>All</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/tickets/{jiraKey}</code></td><td>单个工单详情（聚合 Case + Finding + Evidence + Fix Pipeline）</td><td>All</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/tickets/{jiraKey}/llm-analysis</code></td><td>获取 LLM 分析结果详情</td><td>All</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.4 修复流水线 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th><th>权限</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/findings/{findingKey}/approve-fix</code></td><td>审批通过，触发 LLM 修复</td><td>Owner / Dev</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/findings/{findingKey}/reject-fix</code></td><td>拒绝修复</td><td>Owner</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/findings/{findingKey}/retry-fix</code></td><td>重试修复（失败后）</td><td>Owner</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/fix-pipelines/{findingKey}</code></td><td>获取修复流水线状态</td><td>All</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/fix-pipelines/{findingKey}/logs</code></td><td>获取修复 Session 日志</td><td>Owner / Dev</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.5 Dashboard 统计 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/dashboard/overview</code></td><td>全局概览（Case 数、诊断成功率、修复成功率、平均耗时）</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/dashboard/trends</code></td><td>趋势数据（按日/周，Case / Finding / JIRA 数量）</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/dashboard/top-services</code></td><td>Top 异常服务 / API 排行</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/projects/{projectKey}/stats</code></td><td>项目级统计</td></tr>
+    </tbody>
+  </table>
+
+  <h3>12.6 Webhook 接收 API</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/webhooks/bitbucket</code></td><td>接收 Bitbucket PR 事件（created / approved / merged / declined）</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/webhooks/cicd</code></td><td>接收 CI/CD Pipeline 完成事件（success / failure）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- 13  WIREFRAMES -->
+<!-- ============================================================ -->
+<section id="wireframes" class="section">
+  <div class="section-title"><div class="num">13</div><div><h2>关键页面原型</h2><p class="section-intro">中台核心界面的线框图，展示信息架构与交互布局。</p></div></div>
+
+  <h3>13.1 Admin Dashboard</h3>
+  <div class="wire">
+    <div class="wire-title">Admin Dashboard 线框</div>
+    <div class="wire-nav">
+      <span>[Logo] AI Sherlock Console</span>
+      <span>🔔 3 &nbsp; 👤 admin@company.com &nbsp; [退出]</span>
+    </div>
+    <div class="wire-sidebar">
+      <div class="wire-side">
+        <div class="wire-item" style="font-weight:700">📊 Dashboard</div>
+        <div class="wire-item">📁 项目管理</div>
+        <div class="wire-item">📋 JIRA 看板</div>
+        <div class="wire-item">🔍 Case 列表</div>
+        <div class="wire-item">⚙️ 系统设置</div>
+        <hr style="border:none;border-top:1px solid #eee;margin:8px 0"/>
+        <div class="wire-item" style="color:#667085">项目快捷切换</div>
+        <div class="wire-item">&nbsp; • 账户中心</div>
+        <div class="wire-item">&nbsp; • 支付网关</div>
+        <div class="wire-item">&nbsp; • 客户服务</div>
+      </div>
+      <div class="wire-main">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+          <div class="wire-card" style="text-align:center">
+            <div style="font-size:18px;font-weight:800">128</div>
+            <div style="font-size:10px;color:#667085">本周 Case</div>
+          </div>
+          <div class="wire-card" style="text-align:center">
+            <div style="font-size:18px;font-weight:800;color:#16856b">87%</div>
+            <div style="font-size:10px;color:#667085">诊断成功率</div>
+          </div>
+          <div class="wire-card" style="text-align:center">
+            <div style="font-size:18px;font-weight:800">42s</div>
+            <div style="font-size:10px;color:#667085">平均耗时</div>
+          </div>
+          <div class="wire-card" style="text-align:center">
+            <div style="font-size:18px;font-weight:800;color:#4f46e5">73%</div>
+            <div style="font-size:10px;color:#667085">修复成功率</div>
+          </div>
+        </div>
+        <div class="wire-card">[Case 趋势图 — 折线图区域]</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div class="wire-card">[Top 异常服务排行]</div>
+          <div class="wire-card">[项目维度 Case 分布饼图]</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>13.2 JIRA 项目看板</h3>
+  <div class="wire">
+    <div class="wire-title">JIRA 项目看板线框</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#eef4ff;border-radius:8px">
+      <span>项目: <b>账户中心</b> &nbsp;|&nbsp; Owner: 张三 &nbsp;|&nbsp; 工单: 42 (Open: 12, In Progress: 8, Done: 22)</span>
+      <span>状态: [全部 ▾] &nbsp; 类型: [全部 ▾] &nbsp; 程度: [全部 ▾] &nbsp; 🔍 搜索...</span>
+    </div>
+    <table style="font-size:11px;margin:0">
+      <thead>
+        <tr>
+          <th>JIRA Key</th><th>标题</th><th>类型</th><th>Assignee</th>
+          <th>LLM 分析</th><th>修复状态</th><th>PR</th><th>时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#4f46e5">ACCOUNT-845</td>
+          <td>账户查询接口 NPE</td>
+          <td><span class="tag g" style="font-size:9px">BE</span></td>
+          <td>张三</td>
+          <td><span class="tag p" style="font-size:9px">已分析 92%</span></td>
+          <td><span class="tag g" style="font-size:9px">已 Merge</span></td>
+          <td style="color:#4f46e5">PR #127</td>
+          <td>09-01</td>
+        </tr>
+        <tr>
+          <td style="color:#4f46e5">ACCOUNT-846</td>
+          <td>账户详情页白屏</td>
+          <td><span class="tag b" style="font-size:9px">FE</span></td>
+          <td>张三</td>
+          <td><span class="tag p" style="font-size:9px">已分析 78%</span></td>
+          <td><span class="tag a" style="font-size:9px">待审批</span></td>
+          <td>—</td>
+          <td>09-01</td>
+        </tr>
+        <tr>
+          <td style="color:#4f46e5">ACCOUNT-847</td>
+          <td>客户信息适配器超时</td>
+          <td><span class="tag a" style="font-size:9px">INT</span></td>
+          <td>张三</td>
+          <td><span class="tag a" style="font-size:9px">分析中...</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>09-02</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>13.3 Case 详情页</h3>
+  <div class="wire">
+    <div class="wire-title">Case 详情页线框</div>
+    <div style="padding:8px;background:#eef4ff;border-radius:8px;margin-bottom:12px">
+      <span style="font-weight:700">Case SH-20260901-A8F31</span> &nbsp;|&nbsp;
+      <span>账户查询接口 NPE</span> &nbsp;|&nbsp;
+      <span class="tag r" style="font-size:9px">Critical</span> &nbsp;|&nbsp;
+      <span>项目: 账户中心</span> &nbsp;|&nbsp;
+      <span>环境: PROD</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <div class="wire-card" style="font-weight:700">📝 原始上报</div>
+        <div class="wire-card">标题: 账户查询报错<br/>描述: 点击查询按钮后...<br/>截图: [img] [img]</div>
+        <div class="wire-card" style="font-weight:700">🌐 Network</div>
+        <div class="wire-card">GET /api/account/info → 500<br/>traceId: abc-123</div>
+        <div class="wire-card" style="font-weight:700">❌ Error Stacks</div>
+        <div class="wire-card">TypeError: Cannot read...<br/>at AccountService.java:184</div>
+      </div>
+      <div>
+        <div class="wire-card" style="font-weight:700">🔗 Evidence Chain</div>
+        <div class="wire-card">
+          CTX-101 (Network 500)<br/>
+          &nbsp;&nbsp;→ EVD-301 (Elastic NPE log)<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;→ EVD-302 (Source @ L184)<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ FND-401 (null-handling bug)
+        </div>
+        <div class="wire-card" style="font-weight:700">🧠 LLM 分析结果</div>
+        <div class="wire-card">
+          Root Cause: AccountInfo 返回 null...<br/>
+          Confidence: 92% (System: 88%)<br/>
+          定位: account-ms / AccountService.java:184<br/>
+          Fix: 添加 null check + 默认值<br/>
+          [批准修复] [拒绝]
+        </div>
+        <div class="wire-card" style="font-weight:700">📋 Findings</div>
+        <div class="wire-card">
+          F-001 [BE] account-ms/AccountService<br/>
+          → JIRA: ACCOUNT-845<br/>
+          → Fix Pipeline: MERGED ✅<br/>
+          → PR: #127 (Merged)<br/>
+          → UAT: Deployed ✅
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 14  MILESTONES -->
+<!-- ============================================================ -->
+<section id="milestones" class="section">
+  <div class="section-title"><div class="num">14</div><div><h2>里程碑与 MVP 范围</h2><p class="section-intro">分三期交付，MVP 聚焦核心闭环。</p></div></div>
+
+  <h3>14.1 MVP（第一期）— 核心闭环</h3>
+  <table>
+    <thead>
+      <tr><th>模块</th><th>MVP 范围</th><th>不做</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Landing Page</b></td>
+        <td>静态介绍页 + 登录入口</td>
+        <td>动画、实时数据看板</td>
+      </tr>
+      <tr>
+        <td><b>Admin Dashboard</b></td>
+        <td>4 个核心 KPI 卡片 + Case 趋势图</td>
+        <td>自定义仪表盘、导出报表</td>
+      </tr>
+      <tr>
+        <td><b>项目管理</b></td>
+        <td>项目 CRUD + 仓库绑定 + 日志绑定 + JIRA 映射</td>
+        <td>批量导入、仓库自动发现</td>
+      </tr>
+      <tr>
+        <td><b>JIRA 看板</b></td>
+        <td>按项目维度列表 + LLM 分析内联展示 + 筛选</td>
+        <td>看板拖拽、自定义视图</td>
+      </tr>
+      <tr>
+        <td><b>LLM 分析</b></td>
+        <td>复用后端 Diagnosis Orchestrator，中台展示分析结果</td>
+        <td>自定义 Prompt、多 Provider 切换 UI</td>
+      </tr>
+      <tr>
+        <td><b>审批 &amp; 修复</b></td>
+        <td>[批准修复] 按钮 → Devin 修复 Session → 自动创建 PR</td>
+        <td>批量审批、修复 Preview Diff</td>
+      </tr>
+      <tr>
+        <td><b>PR 联动</b></td>
+        <td>PR 状态回写 JIRA + 中台展示</td>
+        <td>中台内 PR Review</td>
+      </tr>
+      <tr>
+        <td><b>UAT 发布</b></td>
+        <td>Webhook 直通方式（Merge → CI/CD 自动部署）</td>
+        <td>中台内编排多步发布</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>14.2 第二期 — 增强体验</h3>
+  <ul>
+    <li>Case 详情页证据链可视化（SVG 图谱）</li>
+    <li>JIRA 看板支持看板视图（Kanban 拖拽）</li>
+    <li>修复 Preview — 在中台内预览 LLM 生成的 Diff</li>
+    <li>批量审批 &amp; 批量触发修复</li>
+    <li>多 LLM Provider 切换（Devin / Cursor / 自建模型）</li>
+    <li>Dashboard 自定义组件</li>
+  </ul>
+
+  <h3>14.3 第三期 — 规模化</h3>
+  <ul>
+    <li>企业 SSO 集成（OIDC / SAML）</li>
+    <li>多 Organization 支持</li>
+    <li>仓库自动发现（扫描 Bitbucket Group）</li>
+    <li>智能项目推荐（根据历史 Case 自动推荐项目配置）</li>
+    <li>发布编排（多步骤、多服务联合发布）</li>
+    <li>数据分析导出 &amp; 报表</li>
+  </ul>
+
+  <h3>14.4 MVP 交付 Workstreams</h3>
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>WS-A 前端</h3>
+      <p class="small">Landing Page + Admin 框架 + 项目管理页 + JIRA 看板 + Case 详情页。技术栈：React + Ant Design + React Router。</p>
+    </div>
+    <div class="card">
+      <h3>WS-B 后端 · 平台</h3>
+      <p class="small">项目管理 CRUD + 仓库绑定验证 + 日志绑定验证 + Dashboard 统计接口。扩展现有 Spring Boot Modular Monolith。</p>
+    </div>
+    <div class="card">
+      <h3>WS-C 后端 · 修复流</h3>
+      <p class="small">fix_pipeline 状态机 + Devin 修复 Session + Bitbucket PR 创建 + Webhook 接收 + JIRA 回写。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 15  RISKS -->
+<!-- ============================================================ -->
+<section id="risks" class="section">
+  <div class="section-title"><div class="num">15</div><div><h2>风险与应对</h2><p class="section-intro">中台系统的核心风险识别与缓解策略。</p></div></div>
+
+  <table>
+    <thead>
+      <tr><th>#</th><th>风险</th><th>影响</th><th>概率</th><th>缓解策略</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><b>LLM 修复质量不稳定</b></td>
+        <td>PR 被拒绝率高，Developer 信任度下降</td>
+        <td><span class="tag a">中</span></td>
+        <td>
+          • Confidence 阈值控制（低置信度不显示批准按钮）<br/>
+          • 修复 Prompt 持续优化，记录每次修复的成功/失败<br/>
+          • 提供 [重试修复] 能力，允许 Developer 补充上下文后重试
+        </td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><b>JIRA API 限流 / 不可用</b></td>
+        <td>工单同步延迟，状态不一致</td>
+        <td><span class="tag a">中</span></td>
+        <td>
+          • 异步 Job Queue + 重试策略（复用后端 PostgreSQL Job Queue）<br/>
+          • 本地缓存 JIRA 状态，Webhook 优先，轮询兜底<br/>
+          • JIRA 不可用时中台仍可查看历史数据
+        </td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><b>Bitbucket Webhook 配置复杂</b></td>
+        <td>PR 状态无法实时同步</td>
+        <td><span class="tag a">中</span></td>
+        <td>
+          • 提供 Webhook + 轮询双模式<br/>
+          • 项目管理页提供 Webhook 配置向导（自动生成 Webhook URL + Secret）<br/>
+          • 轮询模式每 5 分钟一次作为 fallback
+        </td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><b>LLM 修复引入新 Bug</b></td>
+        <td>UAT 环境不稳定</td>
+        <td><span class="tag r">高</span></td>
+        <td>
+          • PR 必须经过人工 Review 后才能 Merge（中台不自动 Merge）<br/>
+          • UAT 部署后自动运行冒烟测试<br/>
+          • 部署失败自动回滚<br/>
+          • 修复 Session 限定最小修改范围，降低副作用面
+        </td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><b>项目配置不完整导致 Case 路由失败</b></td>
+        <td>新 Case 无法匹配到项目，Evidence 补全缺失</td>
+        <td><span class="tag a">中</span></td>
+        <td>
+          • 项目创建时强制验证（仓库可达、日志可查、JIRA 可连）<br/>
+          • 未匹配项目的 Case 进入 Unassigned 队列，Admin 可手动分配<br/>
+          • 配置健康度检查 Dashboard
+        </td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><b>UAT 自动发布影响现有流程</b></td>
+        <td>团队不接受自动部署到 UAT</td>
+        <td><span class="tag a">中</span></td>
+        <td>
+          • MVP 仅支持 Webhook 直通方式（复用已有 CI/CD）<br/>
+          • 提供开关：项目级可关闭自动 UAT 部署<br/>
+          • 首次使用建议先在少数试点项目验证
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="danger" style="margin-top:16px">
+    <b>核心约束：中台不自动 Merge PR。</b><br/>
+    LLM 创建的 PR 必须经过人工 Review + Approve 后才能 Merge。中台仅负责创建 PR、设置 Reviewer、同步状态。Merge 操作由 Developer / Owner 在 Bitbucket 中完成（或通过 Bitbucket 的 Auto-Merge 功能在满足条件后自动 Merge）。这是安全底线。
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- APPENDIX: END-TO-END EXAMPLE -->
+<!-- ============================================================ -->
+<div class="hr"></div>
+<section class="section">
+  <div class="section-title"><div><h2>附录：端到端场景演示</h2><p class="section-intro">以一个真实的 Bug 场景走完全流程，展示中台在每个环节的呈现。</p></div></div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>场景：账户查询接口 NPE</h3>
+      <ol>
+        <li><b>QA 上报：</b>QA 在 Chrome 插件中截图 + 描述"点击查询按钮后页面无响应"，提交</li>
+        <li><b>后端接收：</b>POST /api/v1/cases → Case SH-20260902-X7K12 创建</li>
+        <li><b>Evidence 补全：</b>
+          <ul>
+            <li>Network 捕获 GET /api/account/info → 500</li>
+            <li>traceId=abc-123 → Elastic 查到 NPE 日志</li>
+            <li>account-ms 仓库 → AccountService.java:184 截取源码</li>
+          </ul>
+        </li>
+        <li><b>LLM 诊断：</b>Devin 分析 → Finding: null-handling bug in AccountService.queryAccountInfo()</li>
+        <li><b>JIRA 创建：</b>ACCOUNT-850 自动创建，Assignee = 张三（项目 Owner）</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>续：修复 &amp; 发布</h3>
+      <ol start="6">
+        <li><b>中台展示：</b>JIRA 看板 ACCOUNT-850 行显示"已分析 92%"</li>
+        <li><b>人工审批：</b>张三在中台点击 [批准修复]</li>
+        <li><b>LLM 修复：</b>Devin 在 fix/finding-FND-401 分支添加 null check</li>
+        <li><b>PR 创建：</b>PR #128 → account-ms，Reviewer = 张三</li>
+        <li><b>JIRA 同步：</b>ACCOUNT-850 自动添加 PR 链接 Comment</li>
+        <li><b>人工 Review：</b>张三在 Bitbucket Approve PR</li>
+        <li><b>Merge：</b>张三 Merge PR → main</li>
+        <li><b>UAT 部署：</b>Bitbucket Webhook → Jenkins → account-ms-uat 部署成功</li>
+        <li><b>JIRA Done：</b>ACCOUNT-850 自动 Transition → Done</li>
+        <li><b>中台看板：</b>修复状态列显示 ✅ UAT 已发布</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="success">
+    <b>全程耗时估算：</b>上报 → AI 分析（~2 min）→ 人工审批（~5 min）→ LLM 修复（~3 min）→ PR Review（~10 min）→ Merge → UAT 部署（~5 min）。从问题发现到 UAT 验证约 <b>25 分钟</b>，传统流程通常需要 1-3 天。
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- FOOTER -->
+<!-- ============================================================ -->
+<div class="hr"></div>
+<div class="footer">
+  AI Sherlock 中台管理系统 PRD V1.0 &nbsp;|&nbsp; 2026-09-02 &nbsp;|&nbsp; 配套文档：后端技术设计 V1.2 · 产品设计文档（问题诊断 PRD）
+</div>
+
+</div><!-- .container -->
+</body>
+</html>

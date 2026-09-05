@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Sherlock — Backend Technical Design V1.2</title>
+<style>
+:root{
+  --bg:#f5f7fb; --paper:#ffffff; --ink:#15213b; --muted:#667085;
+  --line:#dbe2ef; --primary:#4f46e5; --primary2:#6d5dfc;
+  --green:#16856b; --green-bg:#e9f8f3; --amber:#a15c00; --amber-bg:#fff5df;
+  --red:#b42318; --red-bg:#fff0ef; --blue-bg:#eef4ff; --purple-bg:#f4f0ff;
+  --shadow:0 14px 42px rgba(29,41,57,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  line-height:1.72;
+}
+.container{max-width:1280px;margin:0 auto;padding:32px 28px 80px}
+.hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#141a33 0%,#28285d 48%,#4f46e5 100%);
+  color:white;border-radius:28px;padding:52px 56px;box-shadow:var(--shadow);margin-bottom:28px;
+}
+.hero:after{
+  content:"";position:absolute;right:-90px;top:-90px;width:360px;height:360px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.18),rgba(255,255,255,0) 68%);
+}
+.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#c9cbff;font-weight:700}
+.hero h1{font-size:44px;line-height:1.12;margin:8px 0 16px;letter-spacing:-.03em}
+.hero .subtitle{font-size:19px;color:#e6e7ff;max-width:880px;margin:0}
+.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+.pill{padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.18);font-size:12px}
+.grid{display:grid;gap:20px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{
+  background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 6px 22px rgba(29,41,57,.04)
+}
+.card h3{margin:0 0 8px;font-size:18px}
+.kpi{font-size:32px;font-weight:800;letter-spacing:-.03em;margin:4px 0}
+.small{font-size:13px;color:var(--muted)}
+.section{margin-top:28px}
+.section-title{display:flex;align-items:flex-start;gap:14px;margin:0 0 14px}
+.num{
+  flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--primary);
+  color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:2px
+}
+.section h2{margin:0;font-size:28px;letter-spacing:-.02em}
+.section-intro{color:var(--muted);max-width:1000px;margin:2px 0 18px}
+.highlight{
+  border-left:4px solid var(--primary);background:var(--blue-bg);padding:16px 18px;border-radius:0 14px 14px 0;margin:16px 0
+}
+.note{background:var(--amber-bg);border:1px solid #f5d48b;border-radius:14px;padding:14px 16px;color:#6b4600}
+.success{background:var(--green-bg);border:1px solid #a9dfcf;border-radius:14px;padding:14px 16px;color:#145c4d}
+.danger{background:var(--red-bg);border:1px solid #f1c1bd;border-radius:14px;padding:14px 16px;color:#7d271f}
+table{width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-size:14px}
+th{background:#f8faff;font-weight:700}
+tr:last-child td{border-bottom:none}
+code{font-family:"SFMono-Regular",Consolas,monospace;font-size:.92em;background:#f2f4f7;padding:2px 6px;border-radius:6px}
+pre{
+  background:#101828;color:#e8edff;border-radius:16px;padding:18px 20px;overflow:auto;
+  font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;line-height:1.6;border:1px solid #233150
+}
+pre code{background:transparent;padding:0;color:inherit}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-right:5px}
+.tag.p{background:#ebe9ff;color:#4938cf}.tag.g{background:#e8f7f1;color:#14725c}.tag.a{background:#fff1d9;color:#8b5500}.tag.r{background:#ffebe8;color:#a62b21}
+.diagram{
+  background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--line);border-radius:20px;
+  padding:18px;overflow:auto;box-shadow:0 6px 20px rgba(29,41,57,.04);margin:16px 0 22px
+}
+.diagram-title{font-size:13px;color:var(--muted);margin:0 0 10px;font-weight:700}
+svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.toc{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px 24px;box-shadow:0 6px 20px rgba(29,41,57,.04)}
+.toc ol{columns:2;column-gap:42px;margin:8px 0 0;padding-left:20px}
+.toc a{color:#334155;text-decoration:none}.toc a:hover{color:var(--primary)}
+.columns{columns:2;column-gap:28px}
+.footer{margin-top:42px;color:var(--muted);font-size:12px;text-align:center}
+.hr{height:1px;background:var(--line);margin:26px 0}
+@media(max-width:900px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .hero{padding:36px 28px}.hero h1{font-size:34px}.toc ol,.columns{columns:1}
+  .container{padding:18px 14px 60px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <div class="eyebrow">AI SHERLOCK · BACKEND TECHNICAL DESIGN</div>
+  <h1>AI 诊断编排平台后端技术设计</h1>
+  <p class="subtitle">
+    面向企业级 Web / Java 微服务场景，将一次问题现场从 Context 采集，经过日志与源码证据补全、AI 诊断、Finding 拆分，
+    最终形成一个或多个可执行的 Jira Ticket。架构以 Spring Boot + PostgreSQL 为核心，并为 Group、权限分层、统计分析和未来微服务化预留边界。
+  </p>
+  <div class="meta">
+    <span class="pill">Spring Boot</span><span class="pill">PostgreSQL</span><span class="pill">HTTPS / REST</span>
+    <span class="pill">Elastic / Kibana</span><span class="pill">Bitbucket</span><span class="pill">Devin API</span><span class="pill">Jira API</span>
+  </div>
+</header>
+
+
+<section class="toc section">
+  <h3 style="margin:0">目录</h3>
+  <ol>
+    <li><a href="#goals">目标与设计原则</a></li>
+    <li><a href="#domain">核心领域模型</a></li>
+    <li><a href="#flow">端到端主流程</a></li>
+    <li><a href="#architecture">后端总体架构</a></li>
+    <li><a href="#payload">Context Payload 与接入协议</a></li>
+    <li><a href="#parser">Context 解析与标准化</a></li>
+    <li><a href="#db">数据库模型与表关系</a></li>
+    <li><a href="#evidence">Evidence 补全机制</a></li>
+    <li><a href="#elastic">Elastic / Kibana 日志查询</a></li>
+    <li><a href="#source">Bitbucket / 源码定位</a></li>
+    <li><a href="#ai">AI Diagnosis Orchestrator</a></li>
+    <li><a href="#finding">Finding 与多 Jira 模型</a></li>
+    <li><a href="#jira">Jira 集成</a></li>
+    <li><a href="#api">REST API 设计</a></li>
+    <li><a href="#state">状态机与异步任务</a></li>
+    <li><a href="#group">Group / 权限 / Capability</a></li>
+    <li><a href="#analytics">统计与分析能力</a></li>
+    <li><a href="#performance">性能、索引与分区</a></li>
+    <li><a href="#security">安全与数据治理</a></li>
+    <li><a href="#deployment">部署与演进路线</a></li>
+    <li><a href="#mvp">Hackathon MVP 范围</a></li>
+  </ol>
+</section>
+
+<section id="goals" class="section">
+  <div class="section-title"><div class="num">01</div><div><h2>目标与设计原则</h2><p class="section-intro">后端不是一个 CRUD 服务，而是“确定性证据编排 + AI 推理”的诊断系统。</p></div></div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>核心目标</h3>
+      <ul>
+        <li>稳定接收前端/SDK/插件产生的问题 Context。</li>
+        <li>解析并标准化 Network、Console、Error、Page、WebSocket、Business Event 等不同类型数据。</li>
+        <li>通过服务映射、日志系统、源码仓库补充“运行时证据”。</li>
+        <li>将高质量、可验证、范围已收窄的 Evidence 交给 AI，而不是把原始数据全部塞给模型。</li>
+        <li>一次 Case 允许识别多个 Finding，并按责任域创建多个 Jira。</li>
+        <li>预留 Organization / Group / Application / Capability / Analytics 维度。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>五条架构原则</h3>
+      <ol>
+        <li><b>Case 是聚合根：</b>所有现场、证据、诊断、Finding 和 Jira 都以 Case 关联。</li>
+        <li><b>Context ≠ Evidence：</b>Context 来自现场；Evidence 是后端主动补全得到的外部证据。</li>
+        <li><b>Finding ≠ Case：</b>一次 Case 可拆成多个独立前端/后端/集成问题。</li>
+        <li><b>Deterministic first：</b>能通过 URL、traceId、stacktrace、repo mapping 确定的事情不交给 AI 猜。</li>
+        <li><b>AI Provider 可替换：</b>Devin 只是 DiagnosisProvider 的一个实现。</li>
+      </ol>
+    </div>
+  </div>
+  <div class="highlight"><b>系统主线：</b> <code>Group → Diagnosis Case → Context → Evidence → Diagnosis Run → Findings → Jira Tickets</code></div>
+</section>
+
+<section id="domain" class="section">
+  <div class="section-title"><div class="num">02</div><div><h2>核心领域模型</h2><p class="section-intro">先定义业务对象，再定义表和服务边界。整个系统围绕 Case 与 Finding 两个关键概念展开。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 1 · 领域关系总览</div>
+    <svg viewBox="0 0 1180 610" width="100%" role="img">
+      <defs>
+        <filter id="s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-opacity=".08"/></filter>
+        <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#8190aa"/></marker>
+      </defs>
+      <rect x="0" y="0" width="1180" height="610" rx="18" fill="#fbfcff"/>
+      <!-- platform -->
+      <rect x="38" y="45" width="250" height="74" rx="16" fill="#f4f0ff" stroke="#b9adff" filter="url(#s)"/>
+      <text x="163" y="75" text-anchor="middle" font-size="18" font-weight="700" fill="#3f35a7">Organization</text>
+      <text x="163" y="100" text-anchor="middle" font-size="12" fill="#6b64a8">租户 / 法人 / 企业边界</text>
+      <rect x="38" y="160" width="250" height="74" rx="16" fill="#eef4ff" stroke="#a9c3ff" filter="url(#s)"/>
+      <text x="163" y="190" text-anchor="middle" font-size="18" font-weight="700" fill="#2f4f9d">Group</text>
+      <text x="163" y="215" text-anchor="middle" font-size="12" fill="#60749f">团队、权限、能力、统计边界</text>
+      <rect x="38" y="275" width="250" height="74" rx="16" fill="#eefaf5" stroke="#9ad8c5" filter="url(#s)"/>
+      <text x="163" y="305" text-anchor="middle" font-size="18" font-weight="700" fill="#176b55">Application</text>
+      <text x="163" y="330" text-anchor="middle" font-size="12" fill="#4d7b6f">Frontend / Backend / Gateway</text>
+      <rect x="38" y="390" width="250" height="74" rx="16" fill="#fff8e8" stroke="#edc86a" filter="url(#s)"/>
+      <text x="163" y="420" text-anchor="middle" font-size="18" font-weight="700" fill="#8a5a00">Service Registry</text>
+      <text x="163" y="445" text-anchor="middle" font-size="12" fill="#8a6c30">URL / Repo / Log / Jira Mapping</text>
+
+      <!-- diagnosis chain -->
+      <rect x="390" y="70" width="310" height="84" rx="18" fill="#4f46e5" stroke="#3e35c7" filter="url(#s)"/>
+      <text x="545" y="105" text-anchor="middle" font-size="20" font-weight="800" fill="white">Diagnosis Case</text>
+      <text x="545" y="132" text-anchor="middle" font-size="12" fill="#dddafe">一次问题现场 / 聚合根</text>
+
+      <rect x="380" y="220" width="190" height="78" rx="16" fill="#ffffff" stroke="#b8c3d9" filter="url(#s)"/>
+      <text x="475" y="251" text-anchor="middle" font-size="17" font-weight="700" fill="#263552">Context Event</text>
+      <text x="475" y="276" text-anchor="middle" font-size="12" fill="#667085">现场直接采集</text>
+
+      <rect x="620" y="220" width="190" height="78" rx="16" fill="#ffffff" stroke="#b8c3d9" filter="url(#s)"/>
+      <text x="715" y="251" text-anchor="middle" font-size="17" font-weight="700" fill="#263552">Evidence</text>
+      <text x="715" y="276" text-anchor="middle" font-size="12" fill="#667085">日志 / 源码 / 映射</text>
+
+      <rect x="478" y="360" width="220" height="78" rx="16" fill="#f4f0ff" stroke="#b9adff" filter="url(#s)"/>
+      <text x="588" y="392" text-anchor="middle" font-size="17" font-weight="700" fill="#40379a">Diagnosis Run</text>
+      <text x="588" y="417" text-anchor="middle" font-size="12" fill="#716baa">一次 AI 执行记录</text>
+
+      <rect x="805" y="360" width="210" height="78" rx="16" fill="#e9f8f3" stroke="#9bd6c5" filter="url(#s)"/>
+      <text x="910" y="392" text-anchor="middle" font-size="17" font-weight="700" fill="#176b55">Finding 1..N</text>
+      <text x="910" y="417" text-anchor="middle" font-size="12" fill="#4f7c70">独立责任域问题</text>
+
+      <rect x="805" y="500" width="210" height="70" rx="16" fill="#fff4e5" stroke="#efc26d" filter="url(#s)"/>
+      <text x="910" y="530" text-anchor="middle" font-size="17" font-weight="700" fill="#8a5a00">Jira Ticket 0..N</text>
+      <text x="910" y="553" text-anchor="middle" font-size="12" fill="#8b7447">按 Finding 创建</text>
+
+      <!-- arrows -->
+      <path d="M163 119 L163 160" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M163 234 L163 275" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M163 349 L163 390" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M288 197 C340 197,330 110,390 110" fill="none" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M288 312 C345 312,340 132,390 132" fill="none" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M500 154 L475 220" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M590 154 L700 220" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M475 298 C475 330,540 330,555 360" fill="none" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M715 298 C715 330,630 330,620 360" fill="none" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M698 399 L805 399" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M910 438 L910 500" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
+      <path d="M288 427 C400 427,500 325,620 270" fill="none" stroke="#b7953c" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+
+  <table>
+    <thead><tr><th>对象</th><th>业务含义</th><th>生命周期</th><th>关键关系</th></tr></thead>
+    <tbody>
+      <tr><td><b>Diagnosis Case</b></td><td>一次问题提交和完整诊断过程</td><td>RECEIVED → COMPLETED / FAILED</td><td>1:N Context、Evidence、Run</td></tr>
+      <tr><td><b>Context Event</b></td><td>页面现场直接采集的原始事实</td><td>随 Case 创建</td><td>N:1 Case</td></tr>
+      <tr><td><b>Evidence</b></td><td>后端主动补全的日志、源码、映射等证据</td><td>Enrichment 阶段产生</td><td>N:1 Case</td></tr>
+      <tr><td><b>Diagnosis Run</b></td><td>一次 AI 分析执行</td><td>可重跑，可换 Provider</td><td>1:N Finding</td></tr>
+      <tr><td><b>Finding</b></td><td>AI 判断出的独立问题/根因候选</td><td>由 Run 产生</td><td>N:1 Case，1:N Jira</td></tr>
+      <tr><td><b>Jira Ticket</b></td><td>最终研发执行载体</td><td>按 Finding 创建</td><td>N:1 Finding</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="flow" class="section">
+  <div class="section-title"><div class="num">03</div><div><h2>端到端主流程</h2><p class="section-intro">所有模块必须能被放进这条主线；无法解释其在主线中的位置，就不属于第一版核心能力。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 2 · 端到端诊断序列</div>
+    <svg viewBox="0 0 1220 690" width="100%">
+      <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#76839d"/></marker></defs>
+      <rect width="1220" height="690" rx="18" fill="#fbfcff"/>
+      <g font-size="12" fill="#667085" text-anchor="middle">
+        <text x="90" y="42">Client</text><text x="260" y="42">Case API</text><text x="450" y="42">Parser</text>
+        <text x="640" y="42">Evidence Engine</text><text x="830" y="42">Devin</text><text x="1030" y="42">Jira</text>
+      </g>
+      <g stroke="#cbd3e1" stroke-dasharray="5 5">
+        <line x1="90" y1="58" x2="90" y2="650"/><line x1="260" y1="58" x2="260" y2="650"/><line x1="450" y1="58" x2="450" y2="650"/>
+        <line x1="640" y1="58" x2="640" y2="650"/><line x1="830" y1="58" x2="830" y2="650"/><line x1="1030" y1="58" x2="1030" y2="650"/>
+      </g>
+      <g font-size="13" fill="#22314f">
+        <path d="M90 100 L250 100" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="170" y="90" text-anchor="middle">POST /cases + Context</text>
+        <path d="M260 145 L440 145" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="350" y="135" text-anchor="middle">Parse & Normalize</text>
+        <path d="M450 190 L270 190" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="360" y="180" text-anchor="middle">ContextEvent[]</text>
+        <path d="M260 235 L630 235" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="445" y="225" text-anchor="middle">Enrich evidence for suspicious context</text>
+        <rect x="550" y="255" width="180" height="92" rx="13" fill="#eef4ff" stroke="#acc5ff"/>
+        <text x="640" y="282" text-anchor="middle" font-weight="700">Evidence Resolution</text>
+        <text x="640" y="305" text-anchor="middle" font-size="11">Service Mapping</text><text x="640" y="323" text-anchor="middle" font-size="11">Elastic Logs + Bitbucket Source</text>
+        <path d="M640 370 L820 370" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="730" y="360" text-anchor="middle">Structured Diagnosis Context</text>
+        <path d="M830 420 L650 420" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="740" y="410" text-anchor="middle">Structured Findings</text>
+        <path d="M640 465 L270 465" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="455" y="455" text-anchor="middle">Persist Run + Finding[]</text>
+        <path d="M260 510 L1020 510" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="640" y="500" text-anchor="middle">Create Jira per eligible Finding</text>
+        <path d="M1030 560 L270 560" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="650" y="550" text-anchor="middle">Jira key(s)</text>
+        <path d="M260 610 L100 610" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="180" y="600" text-anchor="middle">Case COMPLETED</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="success"><b>关键语义：</b>提交阶段只负责“可靠接收”；诊断阶段异步完成。前端收到 <code>202 Accepted + caseKey</code> 后，不需要等待日志查询、代码拉取、Devin 推理或 Jira 创建。</div>
+</section>
+
+<section id="architecture" class="section">
+  <div class="section-title"><div class="num">04</div><div><h2>后端总体架构</h2><p class="section-intro">Hackathon 阶段采用 Modular Monolith；模块边界按未来微服务拆分方式设计，但只部署一个 Spring Boot 服务。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 3 · Spring Boot Modular Monolith</div>
+    <svg viewBox="0 0 1180 610" width="100%">
+      <rect width="1180" height="610" rx="18" fill="#fbfcff"/>
+      <rect x="55" y="60" width="1070" height="470" rx="24" fill="#fff" stroke="#cad3e3"/>
+      <text x="90" y="92" font-size="13" fill="#667085">AI Sherlock Backend · Spring Boot</text>
+
+      <g>
+        <rect x="95" y="130" width="210" height="120" rx="16" fill="#eef4ff" stroke="#aac3ff"/>
+        <text x="200" y="164" text-anchor="middle" font-size="17" font-weight="700" fill="#2f4f9d">Case Module</text>
+        <text x="200" y="192" text-anchor="middle" font-size="12" fill="#5c6e98">Ingestion API</text>
+        <text x="200" y="212" text-anchor="middle" font-size="12" fill="#5c6e98">Case Lifecycle</text>
+        <text x="200" y="232" text-anchor="middle" font-size="12" fill="#5c6e98">Context Query</text>
+
+        <rect x="345" y="130" width="210" height="120" rx="16" fill="#f4f0ff" stroke="#baadff"/>
+        <text x="450" y="164" text-anchor="middle" font-size="17" font-weight="700" fill="#44379b">Context Module</text>
+        <text x="450" y="192" text-anchor="middle" font-size="12" fill="#716baa">Parser Registry</text>
+        <text x="450" y="212" text-anchor="middle" font-size="12" fill="#716baa">Normalizer</text>
+        <text x="450" y="232" text-anchor="middle" font-size="12" fill="#716baa">Event Store</text>
+
+        <rect x="595" y="130" width="210" height="120" rx="16" fill="#eaf8f3" stroke="#9bd9c4"/>
+        <text x="700" y="164" text-anchor="middle" font-size="17" font-weight="700" fill="#176b55">Evidence Module</text>
+        <text x="700" y="192" text-anchor="middle" font-size="12" fill="#4f7b70">Resolver Registry</text>
+        <text x="700" y="212" text-anchor="middle" font-size="12" fill="#4f7b70">Log / Source Enrichment</text>
+        <text x="700" y="232" text-anchor="middle" font-size="12" fill="#4f7b70">Evidence Store</text>
+
+        <rect x="845" y="130" width="210" height="120" rx="16" fill="#fff4e5" stroke="#efc16d"/>
+        <text x="950" y="164" text-anchor="middle" font-size="17" font-weight="700" fill="#8a5a00">Diagnosis Module</text>
+        <text x="950" y="192" text-anchor="middle" font-size="12" fill="#896f40">Context Builder</text>
+        <text x="950" y="212" text-anchor="middle" font-size="12" fill="#896f40">DiagnosisProvider</text>
+        <text x="950" y="232" text-anchor="middle" font-size="12" fill="#896f40">Run / Finding</text>
+
+        <rect x="95" y="305" width="280" height="135" rx="16" fill="#ffffff" stroke="#cbd3e1"/>
+        <text x="235" y="340" text-anchor="middle" font-size="17" font-weight="700">Integration Module</text>
+        <text x="235" y="368" text-anchor="middle" font-size="12" fill="#667085">Elastic Adapter · Bitbucket Adapter</text>
+        <text x="235" y="390" text-anchor="middle" font-size="12" fill="#667085">Devin Adapter · Jira Adapter</text>
+        <text x="235" y="412" text-anchor="middle" font-size="12" fill="#667085">外部 API 防腐层</text>
+
+        <rect x="420" y="305" width="280" height="135" rx="16" fill="#ffffff" stroke="#cbd3e1"/>
+        <text x="560" y="340" text-anchor="middle" font-size="17" font-weight="700">Platform Module</text>
+        <text x="560" y="368" text-anchor="middle" font-size="12" fill="#667085">Organization · Group · User</text>
+        <text x="560" y="390" text-anchor="middle" font-size="12" fill="#667085">Application · Service Registry</text>
+        <text x="560" y="412" text-anchor="middle" font-size="12" fill="#667085">Capability / Role</text>
+
+        <rect x="745" y="305" width="310" height="135" rx="16" fill="#ffffff" stroke="#cbd3e1"/>
+        <text x="900" y="340" text-anchor="middle" font-size="17" font-weight="700">Infrastructure</text>
+        <text x="900" y="368" text-anchor="middle" font-size="12" fill="#667085">PostgreSQL · Job Worker</text>
+        <text x="900" y="390" text-anchor="middle" font-size="12" fill="#667085">HTTP Client · Secrets · Audit</text>
+        <text x="900" y="412" text-anchor="middle" font-size="12" fill="#667085">Observability / Metrics</text>
+      </g>
+      <text x="590" y="575" text-anchor="middle" font-size="12" fill="#667085">未来量级上升时可沿模块边界拆为 Case / Diagnosis / Platform / Integration Services</text>
+    </svg>
+  </div>
+</section>
+
+
+<section id="orchestration-detail" class="section">
+  <div class="section-title"><div class="num">4.1</div><div><h2>整体诊断编排主流程</h2><p class="section-intro">在模块架构之上，再明确一次真正的运行时主线。Java 后端负责确定性解析、证据补全与工作流控制；AI 只进入已经收敛过的 Diagnosis Context。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 4A · 一次 Case 从上传到多 Jira 的完整后端主流程</div>
+    <svg viewBox="0 0 1240 720" width="100%">
+      <defs>
+        <marker id="flowA" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7c899f"/></marker>
+        <filter id="shadowA" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-opacity=".08"/></filter>
+      </defs>
+      <rect width="1240" height="720" rx="18" fill="#fbfcff"/>
+
+      <rect x="45" y="80" width="200" height="95" rx="16" fill="#4f46e5" filter="url(#shadowA)"/>
+      <text x="145" y="116" text-anchor="middle" font-size="18" font-weight="800" fill="white">1 · Ingestion</text>
+      <text x="145" y="143" text-anchor="middle" font-size="12" fill="#dedbff">POST Context → Case</text>
+
+      <rect x="310" y="80" width="200" height="95" rx="16" fill="#eef4ff" stroke="#aac3ff" filter="url(#shadowA)"/>
+      <text x="410" y="116" text-anchor="middle" font-size="18" font-weight="800" fill="#2f4f9d">2 · Parse</text>
+      <text x="410" y="143" text-anchor="middle" font-size="12" fill="#5f719d">Raw JSON → ContextEvent[]</text>
+
+      <rect x="575" y="80" width="220" height="95" rx="16" fill="#fff4e5" stroke="#efc16d" filter="url(#shadowA)"/>
+      <text x="685" y="116" text-anchor="middle" font-size="18" font-weight="800" fill="#8a5a00">3 · Analyze Context</text>
+      <text x="685" y="143" text-anchor="middle" font-size="12" fill="#806a3e">识别 HTTP500 / Error / Timeout</text>
+
+      <rect x="860" y="80" width="245" height="95" rx="16" fill="#e9f8f3" stroke="#9bd6c5" filter="url(#shadowA)"/>
+      <text x="982" y="116" text-anchor="middle" font-size="18" font-weight="800" fill="#176b55">4 · Evidence Enrichment</text>
+      <text x="982" y="143" text-anchor="middle" font-size="12" fill="#4f7c70">Elastic + Bitbucket + Mapping</text>
+
+      <path d="M245 128 L310 128" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M510 128 L575 128" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M795 128 L860 128" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+
+      <rect x="130" y="265" width="265" height="120" rx="16" fill="#fff" stroke="#bdc7d9" filter="url(#shadowA)"/>
+      <text x="262" y="302" text-anchor="middle" font-size="18" font-weight="800">Service / Application Mapping</text>
+      <text x="262" y="330" text-anchor="middle" font-size="12" fill="#667085">Endpoint → Application</text>
+      <text x="262" y="352" text-anchor="middle" font-size="12" fill="#667085">Application → Repo / Log Source / Jira</text>
+
+      <rect x="485" y="245" width="270" height="155" rx="16" fill="#f4f0ff" stroke="#b9adff" filter="url(#shadowA)"/>
+      <text x="620" y="282" text-anchor="middle" font-size="18" font-weight="800" fill="#44379b">5 · Diagnosis Context Build</text>
+      <text x="620" y="312" text-anchor="middle" font-size="12" fill="#716baa">Case + Relevant Context</text>
+      <text x="620" y="334" text-anchor="middle" font-size="12" fill="#716baa">Log Evidence + Source Evidence</text>
+      <text x="620" y="356" text-anchor="middle" font-size="12" fill="#716baa">Authorized Repositories</text>
+      <text x="620" y="378" text-anchor="middle" font-size="12" fill="#716baa">Prompt / Schema Version</text>
+
+      <rect x="845" y="255" width="220" height="135" rx="16" fill="#4f46e5" filter="url(#shadowA)"/>
+      <text x="955" y="293" text-anchor="middle" font-size="18" font-weight="800" fill="white">6 · Devin Diagnosis</text>
+      <text x="955" y="322" text-anchor="middle" font-size="12" fill="#dedbff">Create Session</text>
+      <text x="955" y="344" text-anchor="middle" font-size="12" fill="#dedbff">Poll → Structured Output</text>
+      <text x="955" y="366" text-anchor="middle" font-size="12" fill="#dedbff">1..N Findings</text>
+
+      <path d="M982 175 C982 215,320 215,300 265" fill="none" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M395 325 L485 325" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M755 325 L845 325" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+
+      <rect x="235" y="505" width="250" height="115" rx="16" fill="#e9f8f3" stroke="#9bd6c5" filter="url(#shadowA)"/>
+      <text x="360" y="542" text-anchor="middle" font-size="18" font-weight="800" fill="#176b55">7 · Result Validation</text>
+      <text x="360" y="570" text-anchor="middle" font-size="12" fill="#4f7c70">Repo / File / Commit / Line</text>
+      <text x="360" y="592" text-anchor="middle" font-size="12" fill="#4f7c70">Evidence References / Confidence</text>
+
+      <rect x="570" y="505" width="220" height="115" rx="16" fill="#fff" stroke="#bdc7d9" filter="url(#shadowA)"/>
+      <text x="680" y="542" text-anchor="middle" font-size="18" font-weight="800">8 · Findings</text>
+      <text x="680" y="570" text-anchor="middle" font-size="12" fill="#667085">Frontend / Backend / Integration</text>
+      <text x="680" y="592" text-anchor="middle" font-size="12" fill="#667085">一个 Case 可多个 Finding</text>
+
+      <rect x="880" y="505" width="210" height="115" rx="16" fill="#fff4e5" stroke="#efc16d" filter="url(#shadowA)"/>
+      <text x="985" y="542" text-anchor="middle" font-size="18" font-weight="800" fill="#8a5a00">9 · Jira Routing</text>
+      <text x="985" y="570" text-anchor="middle" font-size="12" fill="#806a3e">Finding → Jira Project</text>
+      <text x="985" y="592" text-anchor="middle" font-size="12" fill="#806a3e">0..N Tickets / Finding</text>
+
+      <path d="M955 390 C955 455,410 455,370 505" fill="none" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M485 562 L570 562" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+      <path d="M790 562 L880 562" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
+
+      <text x="620" y="682" text-anchor="middle" font-size="12" fill="#667085">主链中只有 Evidence 已补全且被裁剪后的上下文会进入 AI；原始 Payload 不直接透传给 Devin。</text>
+    </svg>
+  </div>
+
+  <h3>4.1.1 责任边界</h3>
+  <table>
+    <thead><tr><th>阶段</th><th>Java 后端负责</th><th>AI / 外部系统负责</th></tr></thead>
+    <tbody>
+      <tr><td>Context</td><td>版本校验、Parser、Normalize、持久化</td><td>无</td></tr>
+      <tr><td>异常识别</td><td>规则判断哪些 Context 值得继续调查</td><td>无</td></tr>
+      <tr><td>日志</td><td>构建查询、字段映射、结果标准化、证据落库</td><td>Elastic 执行查询</td></tr>
+      <tr><td>源码</td><td>确定 App/Repo/Commit/候选文件和代码窗口</td><td>Bitbucket 返回源码</td></tr>
+      <tr><td>AI</td><td>构建 DiagnosisContext、创建/轮询 Session、验证结果</td><td>Devin 做推理与受限 Repo 探索</td></tr>
+      <tr><td>交付</td><td>Finding 去重、Jira routing、幂等创建</td><td>Jira 保存 Ticket</td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<section id="payload" class="section">
+  <div class="section-title"><div class="num">05</div><div><h2>Context Payload 与接入协议</h2><p class="section-intro">后端不依赖前端究竟通过 SDK 还是浏览器插件产生 Context，只定义稳定、可版本化的 HTTPS Contract。</p></div></div>
+
+  <h3>5.1 接口</h3>
+  <pre><code>POST /api/v1/cases
+Content-Type: application/json
+Content-Encoding: gzip   // 可选，推荐大 payload 使用
+Idempotency-Key: &lt;uuid&gt; // 推荐</code></pre>
+
+  <h3>5.2 推荐 Payload</h3>
+  <pre><code>{
+  "schemaVersion": "1.0",
+  "case": {
+    "clientCaseId": "9f3f1d6e-...",
+    "sessionId": "session-123",
+    "title": "Account inquiry failed",
+    "description": "Account information cannot be loaded",
+    "severity": "HIGH",
+    "occurredAt": "2026-08-30T13:20:31.123Z"
+  },
+  "scope": {
+    "groupKey": "teller-team",
+    "sourceApplication": "teller-web",
+    "environment": "SIT",
+    "buildVersion": "2026.08.30.1182",
+    "gitCommit": "a83ef123"
+  },
+  "pageContext": {
+    "url": "https://.../customer/account",
+    "route": "/account/inquiry",
+    "title": "Account Inquiry",
+    "browser": "Chrome"
+  },
+  "network": [{
+    "eventTime": "2026-08-30T13:20:30.921Z",
+    "method": "GET",
+    "url": "/ms-name/inquiry/account-info",
+    "status": 500,
+    "durationMs": 823,
+    "transactionId": "TX-938184",
+    "traceId": "abc-123",
+    "requestSummary": {},
+    "responseSummary": {}
+  }],
+  "consoleErrors": [],
+  "stacks": [],
+  "runtimeLogs": [],
+  "businessEvents": [],
+  "extensions": {}
+}</code></pre>
+
+  <table>
+    <thead><tr><th>设计点</th><th>要求</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>schemaVersion</td><td>必填</td><td>Parser 可按版本兼容旧 Payload。</td></tr>
+      <tr><td>时间字段</td><td>统一 ISO-8601 UTC</td><td>日志窗口和跨系统时间关联必须稳定。</td></tr>
+      <tr><td>traceId / transactionId</td><td>尽可能保留</td><td>优先级高于“仅按时间搜索日志”。</td></tr>
+      <tr><td>extensions</td><td>允许未知 JSON 扩展</td><td>未来增加 Redux、WebSocket、DOM 等不破坏协议。</td></tr>
+      <tr><td>敏感字段</td><td>客户端和服务端双层脱敏</td><td>银行环境不能无差别保留请求/响应正文。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="parser" class="section">
+  <div class="section-title"><div class="num">06</div><div><h2>Context 解析与标准化</h2><p class="section-intro">Parser 层只负责把“多种输入格式”变成统一 ContextEvent，不承担 AI 诊断。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 4 · Parser Registry</div>
+    <svg viewBox="0 0 1100 410" width="100%">
+      <rect width="1100" height="410" rx="18" fill="#fbfcff"/>
+      <rect x="50" y="135" width="210" height="95" rx="16" fill="#4f46e5"/>
+      <text x="155" y="172" text-anchor="middle" font-size="18" font-weight="700" fill="white">Raw Payload</text>
+      <text x="155" y="198" text-anchor="middle" font-size="12" fill="#dedbff">JSON / schemaVersion</text>
+
+      <rect x="335" y="65" width="210" height="235" rx="18" fill="#fff" stroke="#bec8d9"/>
+      <text x="440" y="102" text-anchor="middle" font-size="17" font-weight="700">ContextParserRegistry</text>
+      <g font-size="12" fill="#667085">
+        <text x="440" y="137" text-anchor="middle">PageParser</text><text x="440" y="162" text-anchor="middle">NetworkParser</text>
+        <text x="440" y="187" text-anchor="middle">ConsoleParser</text><text x="440" y="212" text-anchor="middle">ErrorParser</text>
+        <text x="440" y="237" text-anchor="middle">WebSocketParser</text><text x="440" y="262" text-anchor="middle">BusinessEventParser</text>
+      </g>
+
+      <rect x="620" y="105" width="210" height="155" rx="18" fill="#eef4ff" stroke="#aac3ff"/>
+      <text x="725" y="140" text-anchor="middle" font-size="17" font-weight="700" fill="#2f4f9d">Normalizer</text>
+      <g font-size="12" fill="#5f719d">
+        <text x="725" y="172" text-anchor="middle">Timestamp</text><text x="725" y="195" text-anchor="middle">URL / Service</text>
+        <text x="725" y="218" text-anchor="middle">Header Key / Severity</text><text x="725" y="241" text-anchor="middle">Sensitive Data Masking</text>
+      </g>
+
+      <rect x="900" y="135" width="150" height="95" rx="16" fill="#e9f8f3" stroke="#9bd6c5"/>
+      <text x="975" y="172" text-anchor="middle" font-size="17" font-weight="700" fill="#176b55">ContextEvent[]</text>
+      <text x="975" y="198" text-anchor="middle" font-size="12" fill="#4f7c70">统一事件模型</text>
+
+      <path d="M260 182 L335 182" stroke="#7b879f" stroke-width="2"/>
+      <path d="M545 182 L620 182" stroke="#7b879f" stroke-width="2"/>
+      <path d="M830 182 L900 182" stroke="#7b879f" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <pre><code>public interface ContextParser {
+    ContextType supports();
+    List&lt;ContextEvent&gt; parse(JsonNode payload, ParseContext context);
+}
+
+public record ContextEvent(
+    ContextType type,
+    Instant eventTime,
+    Integer sequenceNo,
+    String transactionId,
+    String traceId,
+    Long applicationId,
+    String level,
+    String summary,
+    JsonNode payload
+) {}</code></pre>
+
+  <div class="note"><b>建议：</b>Parser 不要直接写数据库；Parser 只产生领域对象，统一由 <code>ContextEventRepository.batchInsert()</code> 批量持久化。这样解析逻辑可独立单测。</div>
+</section>
+
+<section id="db" class="section">
+  <div class="section-title"><div class="num">07</div><div><h2>数据库模型与表关系</h2><p class="section-intro">PostgreSQL 采用“关系字段 + JSONB 扩展”的 Hybrid Schema。高频过滤字段结构化，复杂原始内容保留 JSONB。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 5 · 核心 ER Diagram</div>
+    <svg viewBox="0 0 1240 790" width="100%">
+      <rect width="1240" height="790" rx="18" fill="#fbfcff"/>
+      <!-- platform left -->
+      <g>
+        <rect x="35" y="45" width="220" height="110" rx="14" fill="#f4f0ff" stroke="#b9adff"/>
+        <text x="55" y="72" font-weight="700" font-size="15" fill="#44379b">organization</text>
+        <text x="55" y="96" font-size="11" fill="#667085">PK id</text><text x="55" y="116" font-size="11" fill="#667085">org_key, name, settings</text>
+        <rect x="35" y="205" width="220" height="125" rx="14" fill="#eef4ff" stroke="#aac3ff"/>
+        <text x="55" y="232" font-weight="700" font-size="15" fill="#2f4f9d">team_group</text>
+        <text x="55" y="256" font-size="11" fill="#667085">PK id</text><text x="55" y="276" font-size="11" fill="#667085">FK organization_id</text>
+        <text x="55" y="296" font-size="11" fill="#667085">group_key, name, settings</text>
+        <rect x="35" y="390" width="220" height="125" rx="14" fill="#eaf8f3" stroke="#9bd9c4"/>
+        <text x="55" y="417" font-weight="700" font-size="15" fill="#176b55">application</text>
+        <text x="55" y="441" font-size="11" fill="#667085">PK id</text><text x="55" y="461" font-size="11" fill="#667085">FK organization_id</text>
+        <text x="55" y="481" font-size="11" fill="#667085">app_key, app_type</text>
+        <rect x="35" y="575" width="220" height="135" rx="14" fill="#fff4e5" stroke="#efc16d"/>
+        <text x="55" y="602" font-weight="700" font-size="15" fill="#8a5a00">service_registry</text>
+        <text x="55" y="626" font-size="11" fill="#667085">PK id</text><text x="55" y="646" font-size="11" fill="#667085">FK application_id UNIQUE</text>
+        <text x="55" y="666" font-size="11" fill="#667085">url_patterns, repo_config</text><text x="55" y="686" font-size="11" fill="#667085">log_config, jira_config</text>
+      </g>
+
+      <!-- center case -->
+      <rect x="355" y="65" width="275" height="195" rx="16" fill="#4f46e5" stroke="#3e35c7"/>
+      <text x="380" y="96" font-size="17" font-weight="800" fill="white">diagnosis_case</text>
+      <g font-size="11" fill="#e8e6ff">
+        <text x="380" y="124">PK id · case_key UNIQUE</text><text x="380" y="145">FK organization_id</text>
+        <text x="380" y="166">FK group_id</text><text x="380" y="187">FK source_application_id</text>
+        <text x="380" y="208">session_id · status · severity</text><text x="380" y="229">schema_version · raw_payload JSONB</text>
+      </g>
+      <rect x="335" y="335" width="235" height="165" rx="14" fill="#fff" stroke="#bdc7d9"/>
+      <text x="355" y="362" font-weight="700" font-size="15">context_event</text>
+      <g font-size="11" fill="#667085"><text x="355" y="386">PK id · FK case_id</text><text x="355" y="407">event_type · event_time</text>
+      <text x="355" y="428">transaction_id · trace_id</text><text x="355" y="449">application_id · level</text><text x="355" y="470">summary · payload JSONB</text></g>
+      <rect x="610" y="335" width="235" height="165" rx="14" fill="#fff" stroke="#bdc7d9"/>
+      <text x="630" y="362" font-weight="700" font-size="15">diagnosis_evidence</text>
+      <g font-size="11" fill="#667085"><text x="630" y="386">PK id · FK case_id</text><text x="630" y="407">evidence_type · source_system</text>
+      <text x="630" y="428">application_id · repo · file</text><text x="630" y="449">line_start / line_end</text><text x="630" y="470">content · metadata JSONB</text></g>
+
+      <!-- right diagnosis -->
+      <rect x="910" y="65" width="270" height="175" rx="14" fill="#f4f0ff" stroke="#b9adff"/>
+      <text x="930" y="92" font-weight="700" font-size="15" fill="#44379b">diagnosis_run</text>
+      <g font-size="11" fill="#667085"><text x="930" y="116">PK id · FK case_id</text><text x="930" y="137">provider · model · status</text>
+      <text x="930" y="158">prompt_version · external_task_id</text><text x="930" y="179">input_summary JSONB</text><text x="930" y="200">raw_result JSONB</text></g>
+
+      <rect x="910" y="320" width="270" height="205" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/>
+      <text x="930" y="347" font-weight="700" font-size="15" fill="#176b55">diagnosis_finding</text>
+      <g font-size="11" fill="#667085"><text x="930" y="371">PK id · finding_key UNIQUE</text><text x="930" y="392">FK case_id · FK diagnosis_run_id</text>
+      <text x="930" y="413">finding_type · application_id</text><text x="930" y="434">repo · file · method · lines</text>
+      <text x="930" y="455">confidence · severity · status</text><text x="930" y="476">root_cause_summary</text><text x="930" y="497">recommended_fix · detail JSONB</text></g>
+
+      <rect x="910" y="595" width="270" height="130" rx="14" fill="#fff4e5" stroke="#efc16d"/>
+      <text x="930" y="622" font-weight="700" font-size="15" fill="#8a5a00">jira_ticket</text>
+      <g font-size="11" fill="#667085"><text x="930" y="646">PK id</text><text x="930" y="667">FK case_id · FK finding_id</text>
+      <text x="930" y="688">jira_project · jira_key · status</text><text x="930" y="709">payload JSONB</text></g>
+
+      <rect x="350" y="605" width="250" height="120" rx="14" fill="#fff" stroke="#bdc7d9"/>
+      <text x="370" y="632" font-weight="700" font-size="15">diagnosis_job</text>
+      <g font-size="11" fill="#667085"><text x="370" y="656">PK id · FK case_id</text><text x="370" y="677">job_type · status · retry_count</text><text x="370" y="698">external_task_id · error_message</text></g>
+
+      <!-- relation lines -->
+      <g stroke="#8793a9" stroke-width="1.8" fill="none">
+        <path d="M255 105 L355 105"/><path d="M255 267 L355 150"/><path d="M255 452 L355 190"/>
+        <path d="M492 260 L452 335"/><path d="M540 260 L690 335"/>
+        <path d="M630 145 L910 145"/><path d="M1045 240 L1045 320"/>
+        <path d="M1045 525 L1045 595"/><path d="M492 260 L475 605"/>
+        <path d="M255 642 L610 418"/>
+      </g>
+      <g font-size="10" fill="#667085">
+        <text x="290" y="97">1:N</text><text x="280" y="222">1:N</text><text x="285" y="380">N:M via group_application</text>
+        <text x="458" y="302">1:N</text><text x="626" y="302">1:N</text><text x="780" y="135">1:N</text>
+        <text x="1056" y="282">1:N</text><text x="1056" y="565">1:N</text>
+      </g>
+    </svg>
+  </div>
+
+  <h3>7.1 核心表职责</h3>
+  <table>
+    <thead><tr><th>表</th><th>职责</th><th>是否 MVP 必须</th></tr></thead>
+    <tbody>
+      <tr><td>diagnosis_case</td><td>诊断聚合根、原始 Payload、状态、组织归属</td><td>是</td></tr>
+      <tr><td>context_event</td><td>标准化现场事件</td><td>是</td></tr>
+      <tr><td>diagnosis_evidence</td><td>日志、源码、Sourcemap、服务映射等后端补全证据</td><td>是</td></tr>
+      <tr><td>diagnosis_run</td><td>一次 AI 执行记录，允许重跑和切换 Provider</td><td>是</td></tr>
+      <tr><td>diagnosis_finding</td><td>独立问题/根因候选；一个 Case 可多条</td><td>是</td></tr>
+      <tr><td>jira_ticket</td><td>Finding 对应的 Jira 创建结果</td><td>是</td></tr>
+      <tr><td>diagnosis_job</td><td>异步步骤、重试、外部 task id</td><td>是</td></tr>
+      <tr><td>organization / team_group / application</td><td>平台化边界</td><td>建议表先建，UI 可后做</td></tr>
+      <tr><td>service_registry</td><td>Application 到 URL/Repo/Log/Jira 技术配置映射</td><td>是</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.2 关键 DDL（节选）</h3>
+  <pre><code>CREATE TABLE diagnosis_case (
+    id                    BIGSERIAL PRIMARY KEY,
+    case_key              VARCHAR(64) NOT NULL UNIQUE,
+    organization_id       BIGINT NOT NULL,
+    group_id              BIGINT,
+    source_application_id BIGINT,
+    session_id            VARCHAR(128),
+    title                 VARCHAR(500) NOT NULL,
+    description           TEXT,
+    severity              VARCHAR(32),
+    environment           VARCHAR(64),
+    occurred_at           TIMESTAMPTZ,
+    received_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status                VARCHAR(32) NOT NULL,
+    schema_version        VARCHAR(16) NOT NULL,
+    raw_payload           JSONB NOT NULL,
+    created_by            VARCHAR(128),
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE context_event (
+    id             BIGSERIAL PRIMARY KEY,
+    case_id        BIGINT NOT NULL REFERENCES diagnosis_case(id),
+    event_type     VARCHAR(32) NOT NULL,
+    event_time     TIMESTAMPTZ NOT NULL,
+    sequence_no    INTEGER,
+    transaction_id VARCHAR(128),
+    trace_id       VARCHAR(128),
+    application_id BIGINT,
+    level          VARCHAR(32),
+    summary        TEXT,
+    payload        JSONB NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE diagnosis_finding (
+    id                 BIGSERIAL PRIMARY KEY,
+    case_id            BIGINT NOT NULL REFERENCES diagnosis_case(id),
+    diagnosis_run_id   BIGINT NOT NULL REFERENCES diagnosis_run(id),
+    finding_key        VARCHAR(64) NOT NULL UNIQUE,
+    finding_type       VARCHAR(32) NOT NULL,
+    application_id     BIGINT,
+    repository_name    VARCHAR(256),
+    file_path          TEXT,
+    method_name        VARCHAR(256),
+    line_start         INTEGER,
+    line_end           INTEGER,
+    title              VARCHAR(500) NOT NULL,
+    root_cause_summary TEXT,
+    recommended_fix    TEXT,
+    confidence         NUMERIC(5,4),
+    severity           VARCHAR(32),
+    status             VARCHAR(32) NOT NULL,
+    detail             JSONB,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+</section>
+
+<section id="evidence" class="section">
+  <div class="section-title"><div class="num">08</div><div><h2>Evidence 补全机制</h2><p class="section-intro">Evidence Engine 是系统真正的核心价值：它负责把“现场现象”连接到“日志世界”和“代码世界”。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 6 · Evidence Enrichment Pipeline</div>
+    <svg viewBox="0 0 1160 430" width="100%">
+      <rect width="1160" height="430" rx="18" fill="#fbfcff"/>
+      <rect x="40" y="145" width="180" height="90" rx="15" fill="#4f46e5"/>
+      <text x="130" y="180" text-anchor="middle" font-size="17" font-weight="700" fill="white">Suspicious Context</text>
+      <text x="130" y="207" text-anchor="middle" font-size="12" fill="#dedbff">HTTP 500 / Error / Stack</text>
+      <rect x="285" y="130" width="200" height="120" rx="15" fill="#fff4e5" stroke="#efc16d"/>
+      <text x="385" y="164" text-anchor="middle" font-size="17" font-weight="700" fill="#8a5a00">Service Resolver</text>
+      <text x="385" y="192" text-anchor="middle" font-size="12" fill="#806a3e">URL / Route / App</text>
+      <text x="385" y="215" text-anchor="middle" font-size="12" fill="#806a3e">→ Service Registry</text>
+      <rect x="555" y="65" width="220" height="105" rx="15" fill="#eef4ff" stroke="#aac3ff"/>
+      <text x="665" y="101" text-anchor="middle" font-size="17" font-weight="700" fill="#2f4f9d">Log Evidence Resolver</text>
+      <text x="665" y="128" text-anchor="middle" font-size="12" fill="#5f719d">traceId / transactionId / time</text>
+      <rect x="555" y="245" width="220" height="105" rx="15" fill="#e9f8f3" stroke="#9bd6c5"/>
+      <text x="665" y="281" text-anchor="middle" font-size="17" font-weight="700" fill="#176b55">Source Evidence Resolver</text>
+      <text x="665" y="308" text-anchor="middle" font-size="12" fill="#4f7c70">Repo / Stack / Candidate File</text>
+      <rect x="855" y="130" width="240" height="120" rx="15" fill="#fff" stroke="#bdc7d9"/>
+      <text x="975" y="165" text-anchor="middle" font-size="17" font-weight="700">Evidence Store</text>
+      <text x="975" y="193" text-anchor="middle" font-size="12" fill="#667085">KIBANA_LOG</text><text x="975" y="214" text-anchor="middle" font-size="12" fill="#667085">SOURCE_CODE / MAPPING</text>
+      <g stroke="#7b879f" stroke-width="2" fill="none">
+        <path d="M220 190 L285 190"/><path d="M485 180 C520 180,520 118,555 118"/><path d="M485 200 C520 200,520 298,555 298"/>
+        <path d="M775 118 C820 118,820 170,855 170"/><path d="M775 298 C820 298,820 210,855 210"/>
+      </g>
+    </svg>
+  </div>
+
+  <h3>8.1 Trigger 规则（MVP）</h3>
+  <table>
+    <thead><tr><th>Context</th><th>Trigger</th><th>Resolver</th></tr></thead>
+    <tbody>
+      <tr><td>NETWORK</td><td>HTTP status ≥ 400 / timeout</td><td>Service → Log → Source</td></tr>
+      <tr><td>ERROR / STACK</td><td>uncaught / unhandled rejection</td><td>Sourcemap → Frontend repo</td></tr>
+      <tr><td>CONSOLE</td><td>ERROR 或关键 WARN</td><td>与同时间窗口 network/error 关联</td></tr>
+      <tr><td>BUSINESS / WEBSOCKET</td><td>命中业务异常规则</td><td>按 application/service 映射补充证据</td></tr>
+    </tbody>
+  </table>
+
+  <pre><code>public interface EvidenceResolver {
+    boolean supports(DiagnosisSignal signal);
+    List&lt;DiagnosisEvidence&gt; resolve(DiagnosisCase c, DiagnosisSignal signal);
+}</code></pre>
+</section>
+
+<section id="elastic" class="section">
+  <div class="section-title"><div class="num">09</div><div><h2>Elastic / Kibana 日志查询</h2><p class="section-intro">业务侧常说“查 Kibana”，但架构层建议抽象为 LogSearchClient；如果底层允许，优先直接查询 Elasticsearch，而不是耦合 Kibana UI 内部接口。</p></div></div>
+
+  <h3>9.1 查询优先级</h3>
+  <div class="grid grid-4">
+    <div class="card"><h3>1 · traceId</h3><div class="small">最精确，优先使用</div></div>
+    <div class="card"><h3>2 · transactionId</h3><div class="small">银行交易场景高价值关联键</div></div>
+    <div class="card"><h3>3 · sessionId</h3><div class="small">跨前后端 Session 关联</div></div>
+    <div class="card"><h3>4 · service + time</h3><div class="small">兜底：API + ±N 秒</div></div>
+  </div>
+
+  <pre><code>POST /{index-pattern}/_search
+{
+  "size": 100,
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "transactionId.keyword": "TX-938184" }},
+        { "range": {
+            "@timestamp": {
+              "gte": "2026-08-30T13:20:26Z",
+              "lte": "2026-08-30T13:20:36Z"
+            }
+        }}
+      ]
+    }
+  },
+  "sort": [{ "@timestamp": "asc" }]
+}</code></pre>
+
+  <h3>9.2 返回后处理</h3>
+  <ul>
+    <li>只保留 ERROR / WARN / exception stack / request correlation 等高价值日志。</li>
+    <li>对重复日志做 fingerprint 去重。</li>
+    <li>提取 class、method、file、line 等代码线索。</li>
+    <li>保存“查询条件 + 查询时间 + 原始引用”，保证诊断可审计和可复现。</li>
+  </ul>
+</section>
+
+
+<section id="evidence-relationship" class="section">
+  <div class="section-title"><div class="num">9.1</div><div><h2>Context 与 Evidence 的关系模型</h2><p class="section-intro">为了保证 AI 结论可解释，Evidence 不能只是“都属于同一个 Case”；后端需要记录 Evidence 是由哪条 Context 触发、是否由上一条 Evidence 继续派生。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 6A · Context → Log Evidence → Source Evidence → Finding</div>
+    <svg viewBox="0 0 1120 390" width="100%">
+      <rect width="1120" height="390" rx="18" fill="#fbfcff"/>
+      <rect x="45" y="135" width="190" height="95" rx="16" fill="#eef4ff" stroke="#aac3ff"/>
+      <text x="140" y="172" text-anchor="middle" font-size="17" font-weight="800" fill="#2f4f9d">CTX-101</text>
+      <text x="140" y="198" text-anchor="middle" font-size="11" fill="#5f719d">GET /ms-name/... → 500</text>
+
+      <rect x="315" y="135" width="205" height="95" rx="16" fill="#e9f8f3" stroke="#9bd6c5"/>
+      <text x="418" y="172" text-anchor="middle" font-size="17" font-weight="800" fill="#176b55">EVD-301</text>
+      <text x="418" y="198" text-anchor="middle" font-size="11" fill="#4f7c70">Elastic NPE Log</text>
+
+      <rect x="600" y="135" width="220" height="95" rx="16" fill="#e9f8f3" stroke="#9bd6c5"/>
+      <text x="710" y="172" text-anchor="middle" font-size="17" font-weight="800" fill="#176b55">EVD-302</text>
+      <text x="710" y="198" text-anchor="middle" font-size="11" fill="#4f7c70">Source @ line 184</text>
+
+      <rect x="900" y="125" width="175" height="115" rx="16" fill="#fff" stroke="#bdc7d9"/>
+      <text x="988" y="162" text-anchor="middle" font-size="17" font-weight="800">FND-401</text>
+      <text x="988" y="188" text-anchor="middle" font-size="11" fill="#667085">Null handling bug</text>
+      <text x="988" y="210" text-anchor="middle" font-size="11" fill="#667085">refs: 301, 302</text>
+
+      <g stroke="#7c899f" stroke-width="2">
+        <line x1="235" y1="182" x2="315" y2="182"/>
+        <line x1="520" y1="182" x2="600" y2="182"/>
+        <line x1="820" y1="182" x2="900" y2="182"/>
+      </g>
+      <text x="275" y="164" text-anchor="middle" font-size="10" fill="#667085">source_context_event_id</text>
+      <text x="560" y="164" text-anchor="middle" font-size="10" fill="#667085">parent_evidence_id</text>
+      <text x="860" y="164" text-anchor="middle" font-size="10" fill="#667085">evidenceRefs</text>
+    </svg>
+  </div>
+
+  <p>因此建议 <code>diagnosis_evidence</code> 至少保留以下关系字段：</p>
+  <pre><code>source_context_event_id  // 由哪条现场 Context 触发
+parent_evidence_id       // 是否由另一条 Evidence 派生
+fingerprint              // 同类证据去重
+source_system            // ELASTIC / BITBUCKET / SOURCEMAP / MAPPING</code></pre>
+</section>
+
+
+<section id="source" class="section">
+  <div class="section-title"><div class="num">10</div><div><h2>Bitbucket / 源码定位</h2><p class="section-intro">源码定位同样遵循“确定性优先”：先通过 Service Registry 和 Stacktrace 缩小范围，再让 AI 在候选代码内推理。</p></div></div>
+
+  <div class="highlight"><b>示例：</b> <code>/ms-name/inquiry/account-info → ms-name → account-ms repo → AccountInquiryService.java:184 → 读取 150~220 行 → AI 分析</code></div>
+
+  <h3>10.1 Service Registry 推荐模型</h3>
+  <pre><code>{
+  "applicationId": 42,
+  "urlPatterns": ["/ms-name/**"],
+  "repository": {
+    "provider": "BITBUCKET",
+    "project": "CBS",
+    "repo": "account-ms",
+    "defaultBranch": "main"
+  },
+  "log": {
+    "provider": "ELASTIC",
+    "indexPattern": "ms-name-*"
+  },
+  "jira": {
+    "project": "ACCOUNT"
+  }
+}</code></pre>
+
+  <h3>10.2 Source Resolver 顺序</h3>
+  <ol>
+    <li>从 URL / Application 获取目标 Repository。</li>
+    <li>如果日志带 <code>Class.java:line</code>，直接计算文件候选。</li>
+    <li>根据 buildVersion / gitCommit 确定代码版本；不得默认 main 等于线上版本。</li>
+    <li>只取命中行附近窗口（例如 ±50 行）和必要依赖方法。</li>
+    <li>没有精确 stack 时，再做 symbol / endpoint / exception message 搜索。</li>
+    <li>形成 SOURCE_CODE Evidence，而不是直接交给 AI 远程漫游整个仓库。</li>
+  </ol>
+</section>
+
+
+<section id="ai" class="section">
+  <div class="section-title"><div class="num">11</div><div><h2>AI Diagnosis Orchestrator / Devin Integration</h2><p class="section-intro">这一层的目标不是“Java 调一次 Devin API”，而是把 Devin 纳入一个可重试、可审计、可验证、可替换的诊断工作流。Java 是 Orchestrator，Devin 是 Reasoning Provider。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 7 · Devin 在后端中的准确位置</div>
+    <svg viewBox="0 0 1180 510" width="100%">
+      <rect width="1180" height="510" rx="18" fill="#fbfcff"/>
+      <defs>
+        <filter id="shDevin" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-opacity=".08"/></filter>
+      </defs>
+
+      <rect x="45" y="115" width="210" height="220" rx="16" fill="#fff" stroke="#bdc7d9" filter="url(#shDevin)"/>
+      <text x="150" y="150" text-anchor="middle" font-size="17" font-weight="800">Diagnosis Inputs</text>
+      <text x="150" y="184" text-anchor="middle" font-size="12" fill="#667085">Diagnosis Case</text>
+      <text x="150" y="210" text-anchor="middle" font-size="12" fill="#667085">Relevant Context</text>
+      <text x="150" y="236" text-anchor="middle" font-size="12" fill="#667085">Log Evidence</text>
+      <text x="150" y="262" text-anchor="middle" font-size="12" fill="#667085">Source Evidence</text>
+      <text x="150" y="288" text-anchor="middle" font-size="12" fill="#667085">Application / Repo Mapping</text>
+      <text x="150" y="314" text-anchor="middle" font-size="12" fill="#667085">Prompt + Schema Version</text>
+
+      <rect x="320" y="110" width="245" height="230" rx="16" fill="#eef4ff" stroke="#aac3ff" filter="url(#shDevin)"/>
+      <text x="442" y="146" text-anchor="middle" font-size="17" font-weight="800" fill="#2f4f9d">DiagnosisContextBuilder</text>
+      <text x="442" y="180" text-anchor="middle" font-size="12" fill="#5f719d">Filter / Rank / Truncate</text>
+      <text x="442" y="204" text-anchor="middle" font-size="12" fill="#5f719d">Evidence Reference IDs</text>
+      <text x="442" y="228" text-anchor="middle" font-size="12" fill="#5f719d">Authorized Repo Scope</text>
+      <text x="442" y="252" text-anchor="middle" font-size="12" fill="#5f719d">Sensitive Data Sanitization</text>
+      <text x="442" y="276" text-anchor="middle" font-size="12" fill="#5f719d">Structured Output Schema</text>
+      <text x="442" y="300" text-anchor="middle" font-size="12" fill="#5f719d">Token / Size Budget</text>
+
+      <rect x="630" y="85" width="230" height="280" rx="16" fill="#f4f0ff" stroke="#b9adff" filter="url(#shDevin)"/>
+      <text x="745" y="122" text-anchor="middle" font-size="17" font-weight="800" fill="#44379b">DevinDiagnosisProvider</text>
+      <text x="745" y="158" text-anchor="middle" font-size="12" fill="#716baa">DevinRequestBuilder</text>
+      <text x="745" y="184" text-anchor="middle" font-size="12" fill="#716baa">DevinSessionClient</text>
+      <text x="745" y="210" text-anchor="middle" font-size="12" fill="#716baa">DevinStatusPoller</text>
+      <text x="745" y="236" text-anchor="middle" font-size="12" fill="#716baa">DevinOutputParser</text>
+      <text x="745" y="262" text-anchor="middle" font-size="12" fill="#716baa">Retry / Timeout / Rate Limit</text>
+      <text x="745" y="288" text-anchor="middle" font-size="12" fill="#716baa">Provider DTO Adapter</text>
+      <text x="745" y="314" text-anchor="middle" font-size="12" fill="#716baa">Session Audit</text>
+
+      <rect x="925" y="110" width="210" height="230" rx="16" fill="#e9f8f3" stroke="#9bd6c5" filter="url(#shDevin)"/>
+      <text x="1030" y="146" text-anchor="middle" font-size="17" font-weight="800" fill="#176b55">Result Validator</text>
+      <text x="1030" y="180" text-anchor="middle" font-size="12" fill="#4f7c70">Repository exists?</text>
+      <text x="1030" y="204" text-anchor="middle" font-size="12" fill="#4f7c70">File @ commit exists?</text>
+      <text x="1030" y="228" text-anchor="middle" font-size="12" fill="#4f7c70">Line range valid?</text>
+      <text x="1030" y="252" text-anchor="middle" font-size="12" fill="#4f7c70">Evidence refs valid?</text>
+      <text x="1030" y="276" text-anchor="middle" font-size="12" fill="#4f7c70">Application mapping valid?</text>
+      <text x="1030" y="300" text-anchor="middle" font-size="12" fill="#4f7c70">System confidence</text>
+
+      <g stroke="#7c899f" stroke-width="2">
+        <line x1="255" y1="225" x2="320" y2="225"/>
+        <line x1="565" y1="225" x2="630" y2="225"/>
+        <line x1="860" y1="225" x2="925" y2="225"/>
+      </g>
+
+      <text x="590" y="430" text-anchor="middle" font-size="12" fill="#667085">Devin 不直接消费 raw_payload；它消费 Java 构建的 DiagnosisContext。</text>
+      <text x="590" y="456" text-anchor="middle" font-size="12" fill="#667085">Finding 必须经过 Result Validator 后才能进入正式诊断结果和 Jira 流程。</text>
+    </svg>
+  </div>
+
+  <h3>11.1 Provider Abstraction</h3>
+  <p>业务层只依赖中立接口，不能依赖 Devin Session DTO：</p>
+  <pre><code>public interface DiagnosisProvider {
+    DiagnosisSubmission submit(DiagnosisContext context);
+    Optional&lt;DiagnosisProviderResult&gt; getResult(String providerSessionId);
+    void cancel(String providerSessionId);
+}
+
+public record DiagnosisSubmission(
+    String provider,
+    String providerSessionId,
+    ProviderStatus status
+) {}</code></pre>
+
+  <p>当前实现：</p>
+  <pre><code>DiagnosisProvider
+    └── DevinDiagnosisProvider
+         ├── DevinRequestBuilder
+         ├── DevinSessionClient
+         ├── DevinStatusPoller
+         ├── DevinOutputParser
+         └── DevinErrorMapper</code></pre>
+
+  <h3>11.2 当前 Devin API Contract（v3）</h3>
+  <p>按当前官方 v3 文档，创建组织级 Session 使用：</p>
+  <pre><code>POST https://api.devin.ai/v3/organizations/{org_id}/sessions
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json</code></pre>
+
+  <p>对本项目最有价值的请求字段包括：</p>
+  <table>
+    <thead><tr><th>Devin 字段</th><th>Sherlock 用法</th></tr></thead>
+    <tbody>
+      <tr><td><code>prompt</code></td><td>诊断目标、边界、约束；不承载所有原始数据</td></tr>
+      <tr><td><code>repos</code></td><td>限定当前 Case 允许 Devin 访问的 Repository</td></tr>
+      <tr><td><code>structured_output_required</code></td><td>设为 true，禁止只返回自由文本</td></tr>
+      <tr><td><code>structured_output_schema</code></td><td>约束 Case Summary + Finding[] 的结构</td></tr>
+      <tr><td><code>tags</code></td><td>写入 caseKey、groupKey、environment 等诊断标签</td></tr>
+      <tr><td><code>title</code></td><td>例如 <code>[SH-001] Account inquiry failed</code></td></tr>
+      <tr><td><code>max_acu_limit</code></td><td>未来做 Group Capability / 成本治理时可配置</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><b>设计约束：</b>上述 Devin API 字段属于外部 Provider Contract，应封装在 Integration Module；如果 Devin API 未来变化，只修改 Devin Adapter，不影响 Case / Evidence / Finding 核心领域。</div>
+
+  <h3>11.3 DiagnosisContext：真正发送给 AI 的数据</h3>
+  <p>Java 需要把 Case 中数百甚至数千条 Context/Event 压缩为一个证据导向的输入。推荐内部模型：</p>
+  <pre><code>{
+  "case": {
+    "caseKey": "SH-20260830-A8F31",
+    "title": "Account inquiry failed",
+    "description": "Customer account information cannot be loaded",
+    "environment": "SIT",
+    "buildVersion": "2026.08.30.1182",
+    "occurredAt": "2026-08-30T13:20:31Z"
+  },
+
+  "runtimeContext": [
+    {
+      "ref": "CTX-101",
+      "type": "NETWORK",
+      "summary": "GET /ms-name/inquiry/account-info -> HTTP 500",
+      "traceId": "abc-123",
+      "transactionId": "TX-938184"
+    }
+  ],
+
+  "evidence": [
+    {
+      "ref": "EVD-301",
+      "type": "BACKEND_LOG",
+      "application": "account-ms",
+      "summary": "NPE in AccountInquiryService.getAccountInfo",
+      "content": "..."
+    },
+    {
+      "ref": "EVD-302",
+      "type": "SOURCE_CODE",
+      "repository": "account-ms",
+      "commit": "a83ef123",
+      "file": "src/.../AccountInquiryService.java",
+      "lineStart": 150,
+      "lineEnd": 220,
+      "content": "..."
+    }
+  ],
+
+  "authorizedRepositories": [
+    "account-ms",
+    "teller-web"
+  ]
+}</code></pre>
+
+  <h3>11.4 Context Builder 的裁剪规则</h3>
+  <table>
+    <thead><tr><th>数据</th><th>进入 AI 的规则</th></tr></thead>
+    <tbody>
+      <tr><td>Network</td><td>失败请求、慢请求、与错误时间窗口/trace 关联的请求优先</td></tr>
+      <tr><td>Console</td><td>ERROR、关键 WARN、与失败请求相关日志</td></tr>
+      <tr><td>Backend Logs</td><td>trace/transaction 精确匹配优先；去重后保留异常上下文</td></tr>
+      <tr><td>Source</td><td>只传候选文件/方法/行号窗口，不默认传整个仓库文本</td></tr>
+      <tr><td>Raw Payload</td><td>不直接发送；只作为 Case 审计原始数据</td></tr>
+      <tr><td>敏感字段</td><td>在 DiagnosisContextBuilder 前完成 masking / removal</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.5 Prompt 设计</h3>
+  <pre><code>You are performing an evidence-based software diagnosis.
+
+Analyze only the supplied case context, evidence and authorized repositories.
+
+Goals:
+1. Identify every independent technical finding.
+2. A case may contain frontend, backend and integration findings.
+3. For each finding, identify application, repository, file, method and line range
+   only when supported by evidence.
+4. Explain the most probable root cause.
+5. Recommend the minimum technical fix.
+6. Reference evidence IDs for every important conclusion.
+
+Rules:
+- Do not invent repositories, files, methods or evidence.
+- Split independent defects into separate findings.
+- Lower confidence when evidence is incomplete.
+- Prefer verified runtime evidence over assumptions.
+- Do not create Jira issues or modify code in this diagnosis session.</code></pre>
+
+  <h3>11.6 Structured Output Schema</h3>
+  <p>Devin 应返回 Case-level Summary + Finding Array。示例业务结果：</p>
+  <pre><code>{
+  "caseSummary": "The account inquiry failed because the backend service threw an NPE; the frontend also maps this backend failure to an incorrect empty-state.",
+
+  "findings": [
+    {
+      "type": "BACKEND",
+      "title": "Missing null handling in AccountInquiryService",
+      "aiConfidence": 0.93,
+
+      "application": "account-ms",
+      "repository": "account-ms",
+      "file": "src/main/java/.../AccountInquiryService.java",
+      "method": "getAccountInfo",
+      "lineStart": 176,
+      "lineEnd": 192,
+
+      "rootCause": "...",
+      "recommendedFix": "...",
+
+      "evidenceRefs": [
+        "CTX-101",
+        "EVD-301",
+        "EVD-302"
+      ]
+    },
+
+    {
+      "type": "FRONTEND",
+      "title": "HTTP 500 is rendered as empty account state",
+      "aiConfidence": 0.81,
+
+      "application": "teller-web",
+      "repository": "teller-web",
+      "file": "src/pages/AccountInquiry.tsx",
+
+      "rootCause": "...",
+      "recommendedFix": "...",
+      "evidenceRefs": [
+        "CTX-101",
+        "EVD-401"
+      ]
+    }
+  ]
+}</code></pre>
+
+  <div class="danger"><b>禁止：</b>让模型输出一大段自然语言，然后 Java 用正则去猜 application/file/root cause。结构必须由 schema 强约束，Finding 必须带 evidenceRefs。</div>
+
+  <h3>11.7 Devin Session 生命周期</h3>
+  <div class="diagram">
+    <div class="diagram-title">图 7A · Diagnosis Run 与 Devin Session 生命周期</div>
+    <svg viewBox="0 0 1180 330" width="100%">
+      <rect width="1180" height="330" rx="18" fill="#fbfcff"/>
+      <g font-size="12" text-anchor="middle">
+        <g><rect x="25" y="105" width="135" height="60" rx="14" fill="#eef4ff" stroke="#aac3ff"/><text x="92" y="141" fill="#2f4f9d" font-weight="700">CREATE RUN</text></g>
+        <g><rect x="195" y="105" width="145" height="60" rx="14" fill="#f4f0ff" stroke="#b9adff"/><text x="267" y="141" fill="#44379b" font-weight="700">SUBMIT DEVIN</text></g>
+        <g><rect x="375" y="105" width="155" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="452" y="141" fill="#8a5a00" font-weight="700">WAIT_PROVIDER</text></g>
+        <g><rect x="565" y="105" width="110" height="60" rx="14" fill="#fff" stroke="#bdc7d9"/><text x="620" y="141" font-weight="700">POLL</text></g>
+        <g><rect x="710" y="105" width="160" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="790" y="141" fill="#176b55" font-weight="700">STRUCTURED RESULT</text></g>
+        <g><rect x="905" y="105" width="110" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="960" y="141" fill="#176b55" font-weight="700">VALIDATE</text></g>
+        <g><rect x="1050" y="105" width="105" height="60" rx="14" fill="#4f46e5"/><text x="1102" y="141" fill="white" font-weight="700">FINDINGS</text></g>
+      </g>
+      <g stroke="#7c899f" stroke-width="2">
+        <line x1="160" y1="135" x2="195" y2="135"/>
+        <line x1="340" y1="135" x2="375" y2="135"/>
+        <line x1="530" y1="135" x2="565" y2="135"/>
+        <line x1="675" y1="135" x2="710" y2="135"/>
+        <line x1="870" y1="135" x2="905" y2="135"/>
+        <line x1="1015" y1="135" x2="1050" y2="135"/>
+      </g>
+      <rect x="405" y="235" width="220" height="50" rx="12" fill="#fff0ef" stroke="#efb5b0"/>
+      <text x="515" y="266" text-anchor="middle" font-size="12" fill="#9e2d24" font-weight="700">TIMEOUT / ERROR / SUSPENDED</text>
+      <path d="M515 165 L515 235" stroke="#d57a72" stroke-width="2" stroke-dasharray="5 5"/>
+    </svg>
+  </div>
+
+  <p>当前官方 Get Session 返回 Session 状态和 <code>structured_output</code>；后端将 Provider 状态映射为内部 <code>RUNNING / COMPLETED / FAILED / SUSPENDED</code> 等有限状态。对外部状态名不在核心领域中扩散。</p>
+
+  <h3>11.8 Polling / Timeout / Retry</h3>
+  <p>建议 Polling 采用阶梯退避，例如：</p>
+  <pre><code>5s → 10s → 15s → 30s → 30s ...</code></pre>
+  <p>并在 Group / Capability 或系统配置中定义：</p>
+  <pre><code>diagnosis.max-duration
+diagnosis.max-retry
+diagnosis.max-acu
+diagnosis.poll-backoff</code></pre>
+
+  <p>对于 429、5xx、网络超时可以重试；对于认证/权限/Repo 不可访问等确定性错误，应直接失败并记录原因，避免无意义重试。</p>
+
+  <h3>11.9 Repo Access Strategy</h3>
+  <table>
+    <thead><tr><th>模式</th><th>Java 后端</th><th>Devin</th><th>适用</th></tr></thead>
+    <tbody>
+      <tr><td>Evidence-only</td><td>提前读取候选代码并放入 Evidence</td><td>只分析提供的代码</td><td>安全限制最严格</td></tr>
+      <tr><td>Repository-aware</td><td>传入授权 Repo scope</td><td>自主探索 Repo</td><td>上下文完整、效率高</td></tr>
+      <tr><td><b>Hybrid（推荐）</b></td><td>先找候选文件/代码窗口 + Repo scope</td><td>在授权 Repo 内继续验证调用关系</td><td>本项目最适合</td></tr>
+    </tbody>
+  </table>
+
+  <h3>11.10 Result Validation</h3>
+  <p>Devin Structured Output 不能直接写入正式 Finding。必须经过 Java Validation：</p>
+  <table>
+    <thead><tr><th>验证项</th><th>验证方式</th><th>失败时</th></tr></thead>
+    <tbody>
+      <tr><td>Repository</td><td>是否属于 Case 授权 Repo / Application Mapping</td><td>INVALID_REFERENCE</td></tr>
+      <tr><td>File</td><td>Bitbucket 指定 commit 下文件是否存在</td><td>降低 confidence / Reject</td></tr>
+      <tr><td>Line</td><td>是否在文件有效范围内</td><td>修正或 Reject</td></tr>
+      <tr><td>Evidence Refs</td><td>是否真实存在且属于当前 Case</td><td>不能标 VERIFIED</td></tr>
+      <tr><td>Application</td><td>Application ↔ Repo Mapping 是否一致</td><td>降级为 AI_SUGGESTED</td></tr>
+    </tbody>
+  </table>
+
+  <p>Finding 推荐同时保存：</p>
+  <pre><code>ai_confidence
+system_confidence
+verification_status</code></pre>
+
+  <p>其中 <code>system_confidence</code> 由证据质量和验证结果共同计算，而不是直接复制模型给出的 confidence。</p>
+
+  <h3>11.11 Diagnosis Run 持久化</h3>
+  <p><code>diagnosis_run</code> 推荐扩充到可以完整追踪一次外部 AI 调用：</p>
+  <pre><code>id
+case_id
+provider                 // DEVIN
+provider_session_id
+provider_status
+status
+prompt_version
+schema_version
+repo_access_mode
+started_at
+completed_at
+raw_request JSONB
+raw_response JSONB
+structured_result JSONB
+error_code
+error_message</code></pre>
+
+  <h3>11.12 官方 Devin v3 能力基线</h3>
+  <p class="small">本设计以 2026-08-30 Devin 官方 v3 文档为 API 基线。Create Session 支持 <code>repos</code>、<code>structured_output_required</code>、<code>structured_output_schema</code>、<code>tags</code> 等字段；Session 响应包含 <code>session_id</code>、<code>status</code> 和 <code>structured_output</code>。实现前仍应以公司实际 Devin Tenant 权限和 Repository Connection 配置为准。</p>
+  <p class="small">
+    Reference:
+    <a href="https://docs.devin.ai/api-reference/v3/sessions/post-organizations-sessions">Devin v3 Create Session</a> ·
+    <a href="https://docs.devin.ai/api-reference/v3/sessions/get-organizations-session">Devin v3 Get Session</a>
+  </p>
+</section>
+
+
+<section id="finding" class="section">
+  <div class="section-title"><div class="num">12</div><div><h2>Finding 与多 Jira 模型</h2><p class="section-intro">一次 Case 可能同时包含前端、后端和联动问题，因此 Jira 必须绑定 Finding，而不是直接绑定 Case。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 8 · 一个 Case 拆分多个 Finding / Jira</div>
+    <svg viewBox="0 0 1120 430" width="100%">
+      <rect width="1120" height="430" rx="18" fill="#fbfcff"/>
+      <rect x="55" y="155" width="220" height="95" rx="16" fill="#4f46e5"/>
+      <text x="165" y="192" text-anchor="middle" font-size="18" font-weight="700" fill="white">Case SH-001</text>
+      <text x="165" y="220" text-anchor="middle" font-size="12" fill="#dedbff">Account Inquiry failure</text>
+      <g>
+        <rect x="390" y="45" width="255" height="90" rx="16" fill="#eef4ff" stroke="#aac3ff"/>
+        <text x="517" y="80" text-anchor="middle" font-size="16" font-weight="700" fill="#2f4f9d">Finding F-001 · FRONTEND</text>
+        <text x="517" y="107" text-anchor="middle" font-size="12" fill="#5f719d">teller-web / AccountInquiry.tsx</text>
+        <rect x="390" y="170" width="255" height="90" rx="16" fill="#e9f8f3" stroke="#9bd6c5"/>
+        <text x="517" y="205" text-anchor="middle" font-size="16" font-weight="700" fill="#176b55">Finding F-002 · BACKEND</text>
+        <text x="517" y="232" text-anchor="middle" font-size="12" fill="#4f7c70">account-ms / AccountInquiryService</text>
+        <rect x="390" y="295" width="255" height="90" rx="16" fill="#fff4e5" stroke="#efc16d"/>
+        <text x="517" y="330" text-anchor="middle" font-size="16" font-weight="700" fill="#8a5a00">Finding F-003 · BACKEND</text>
+        <text x="517" y="357" text-anchor="middle" font-size="12" fill="#806a3e">customer-ms / ProfileAdapter</text>
+      </g>
+      <g>
+        <rect x="795" y="45" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
+        <text x="900" y="82" text-anchor="middle" font-size="16" font-weight="700">WEB-123</text><text x="900" y="108" text-anchor="middle" font-size="12" fill="#667085">Jira Project WEB</text>
+        <rect x="795" y="170" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
+        <text x="900" y="207" text-anchor="middle" font-size="16" font-weight="700">ACCOUNT-845</text><text x="900" y="233" text-anchor="middle" font-size="12" fill="#667085">Jira Project ACCOUNT</text>
+        <rect x="795" y="295" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
+        <text x="900" y="332" text-anchor="middle" font-size="16" font-weight="700">CUSTOMER-391</text><text x="900" y="358" text-anchor="middle" font-size="12" fill="#667085">Jira Project CUSTOMER</text>
+      </g>
+      <g stroke="#7b879f" stroke-width="2" fill="none">
+        <path d="M275 200 C330 200,330 90,390 90"/><path d="M275 200 L390 215"/><path d="M275 200 C330 200,330 340,390 340"/>
+        <path d="M645 90 L795 90"/><path d="M645 215 L795 215"/><path d="M645 340 L795 340"/>
+      </g>
+    </svg>
+  </div>
+
+  <h3>12.1 Finding 去重 / 合并策略</h3>
+  <ul>
+    <li>同一 Run 内按照 <code>application + file + method + rootCause fingerprint</code> 做基础去重。</li>
+    <li>不同 Finding 责任域不同，默认不合并。</li>
+    <li>一个 Finding 可创建 0..N Jira；数据库不要建立 finding_id UNIQUE。</li>
+    <li>Jira 创建策略可配置为 AUTO / REVIEW_REQUIRED / DISABLED。</li>
+  </ul>
+</section>
+
+<section id="jira" class="section">
+  <div class="section-title"><div class="num">13</div><div><h2>Jira 集成</h2><p class="section-intro">Jira 是研发交付适配器，不是诊断核心。Jira 项目可从 Finding 的 application/service registry 自动解析。</p></div></div>
+  <table>
+    <thead><tr><th>Jira 字段</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td>Project</td><td>Finding.application → Service Registry → jira.project</td></tr>
+      <tr><td>Summary</td><td>Finding.title + 必要 Case 摘要</td></tr>
+      <tr><td>Description</td><td>Case 现象 + Evidence 摘要 + Root Cause + Fix Recommendation</td></tr>
+      <tr><td>Priority</td><td>Case severity + Finding severity + 可配置规则</td></tr>
+      <tr><td>Labels</td><td>AI-SHERLOCK、Frontend/Backend、application、environment</td></tr>
+      <tr><td>Reference</td><td>caseKey、findingKey、Evidence detail URL</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="api" class="section">
+  <div class="section-title"><div class="num">14</div><div><h2>REST API 设计</h2><p class="section-intro">所有核心读取 API 以 caseKey 为主键；内部数据库 ID 不暴露给调用方。</p></div></div>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/cases</code></td><td>接收 Context，返回 202 + caseKey</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}</code></td><td>Case 主信息与总状态</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/context</code></td><td>标准化 Context Event，可按 type/time 分页</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/evidence</code></td><td>日志/源码/映射 Evidence</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/cases/{caseKey}/diagnosis-runs</code></td><td>触发或重跑诊断</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/diagnosis-runs</code></td><td>查看诊断历史</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/findings</code></td><td>查看所有 Finding</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/findings/{findingKey}/jira</code></td><td>为单个 Finding 创建 Jira</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/groups/{groupKey}/stats</code></td><td>未来 Group 统计入口</td></tr>
+    </tbody>
+  </table>
+
+  <h3>14.1 创建 Case Response</h3>
+  <pre><code>HTTP/1.1 202 Accepted
+{
+  "caseKey": "SH-20260830-A8F31",
+  "status": "RECEIVED",
+  "links": {
+    "self": "/api/v1/cases/SH-20260830-A8F31"
+  }
+}</code></pre>
+</section>
+
+<section id="state" class="section">
+  <div class="section-title"><div class="num">15</div><div><h2>状态机与异步任务</h2><p class="section-intro">外部系统调用必须异步；状态可观测、可重试、可部分失败。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 9 · Case 状态机</div>
+    <svg viewBox="0 0 1180 290" width="100%">
+      <rect width="1180" height="290" rx="18" fill="#fbfcff"/>
+      <g font-size="12" text-anchor="middle">
+        <g><rect x="30" y="100" width="120" height="60" rx="14" fill="#eef4ff" stroke="#aac3ff"/><text x="90" y="136" fill="#2f4f9d" font-weight="700">RECEIVED</text></g>
+        <g><rect x="190" y="100" width="120" height="60" rx="14" fill="#eef4ff" stroke="#aac3ff"/><text x="250" y="136" fill="#2f4f9d" font-weight="700">PARSING</text></g>
+        <g><rect x="350" y="100" width="140" height="60" rx="14" fill="#f4f0ff" stroke="#b9adff"/><text x="420" y="136" fill="#44379b" font-weight="700">ENRICHING</text></g>
+        <g><rect x="530" y="100" width="140" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="600" y="136" fill="#8a5a00" font-weight="700">ANALYZING</text></g>
+        <g><rect x="710" y="100" width="140" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="780" y="136" fill="#176b55" font-weight="700">DIAGNOSED</text></g>
+        <g><rect x="890" y="100" width="120" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="950" y="136" fill="#8a5a00" font-weight="700">JIRA</text></g>
+        <g><rect x="1050" y="100" width="100" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="1100" y="136" fill="#176b55" font-weight="700">DONE</text></g>
+      </g>
+      <g stroke="#7b879f" stroke-width="2">
+        <line x1="150" y1="130" x2="190" y2="130"/><line x1="310" y1="130" x2="350" y2="130"/><line x1="490" y1="130" x2="530" y2="130"/>
+        <line x1="670" y1="130" x2="710" y2="130"/><line x1="850" y1="130" x2="890" y2="130"/><line x1="1010" y1="130" x2="1050" y2="130"/>
+      </g>
+      <rect x="490" y="210" width="200" height="48" rx="12" fill="#fff0ef" stroke="#efb5b0"/>
+      <text x="590" y="240" text-anchor="middle" font-size="12" fill="#9e2d24" font-weight="700">FAILED / PARTIAL_FAILED</text>
+      <path d="M600 160 L600 210" stroke="#d57a72" stroke-width="2" stroke-dasharray="5 5"/>
+    </svg>
+  </div>
+
+  <h3>15.1 diagnosis_job</h3>
+  <p>第一版无需 Kafka。用 PostgreSQL Job Queue + <code>FOR UPDATE SKIP LOCKED</code> 即可支持多 Worker 并发抢占任务：</p>
+  <pre><code>SELECT id
+FROM diagnosis_job
+WHERE status = 'PENDING'
+  AND next_retry_at &lt;= now()
+ORDER BY created_at
+FOR UPDATE SKIP LOCKED
+LIMIT 20;</code></pre>
+
+  <table>
+    <thead><tr><th>Job Type</th><th>用途</th><th>默认重试</th></tr></thead>
+    <tbody>
+      <tr><td>PARSE_CONTEXT</td><td>Context 标准化</td><td>2</td></tr>
+      <tr><td>ENRICH_LOG</td><td>Elastic 日志查询</td><td>3 + backoff</td></tr>
+      <tr><td>RESOLVE_SOURCE</td><td>Bitbucket 源码补全</td><td>3</td></tr>
+      <tr><td>AI_DIAGNOSIS</td><td>Devin Session</td><td>2，需幂等</td></tr>
+      <tr><td>CREATE_JIRA</td><td>创建 Jira</td><td>3，必须使用幂等键/查重</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="group" class="section">
+  <div class="section-title"><div class="num">16</div><div><h2>Group、权限与 Capability 预留</h2><p class="section-intro">MVP 可只配置一个默认 Group，但所有 Case 必须从第一天具备 group_id / organization_id，避免平台化时重构主数据。</p></div></div>
+
+  <div class="grid grid-3">
+    <div class="card"><h3>Group</h3><p class="small">团队级数据隔离、统计、默认 Jira Project、默认 Diagnosis Provider。</p></div>
+    <div class="card"><h3>Role</h3><p class="small">VIEWER / DEVELOPER / GROUP_ADMIN；后期再接企业统一身份系统。</p></div>
+    <div class="card"><h3>Capability Profile</h3><p class="small">控制 AI Diagnosis、Source Analysis、Auto Jira、Retention、Analytics 等功能等级。</p></div>
+  </div>
+
+  <h3>16.1 关系</h3>
+  <pre><code>Organization 1 ── N Group
+Group N ── M Application
+Group N ── M User
+Group 1 ── 1 CapabilityProfile (可演进为版本化)
+Case N ── 1 Group</code></pre>
+
+  <div class="note">银行内部工具不建议使用“Subscription Plan”语义，推荐命名 <b>Capability Profile</b>，避免产品语义偏 SaaS 商业化。</div>
+</section>
+
+<section id="analytics" class="section">
+  <div class="section-title"><div class="num">17</div><div><h2>统计与分析能力</h2><p class="section-intro">事务表从第一天保存 group/application/finding_type/provider/duration 等统计维度；Dashboard 第一版可直接 PostgreSQL 聚合，后续再演进。</p></div></div>
+
+  <div class="grid grid-4">
+    <div class="card"><h3>使用量</h3><div class="small">Case / Diagnosis Run / Jira Count</div></div>
+    <div class="card"><h3>质量</h3><div class="small">AI Success / Confidence / Re-run Rate</div></div>
+    <div class="card"><h3>问题分布</h3><div class="small">Frontend / Backend / Integration</div></div>
+    <div class="card"><h3>工程健康</h3><div class="small">Top Failing Service / API / Repo</div></div>
+  </div>
+
+  <h3>17.1 演进路线</h3>
+  <pre><code>Phase 1: PostgreSQL transactional aggregation
+     ↓
+Phase 2: Materialized View
+     ↓
+Phase 3: diagnosis_daily_stats aggregate table
+     ↓
+Phase 4: ClickHouse / Enterprise Data Warehouse（量级真正需要时）</code></pre>
+
+  <h3>17.2 推荐预留指标</h3>
+  <table>
+    <thead><tr><th>指标</th><th>维度</th></tr></thead>
+    <tbody>
+      <tr><td>case_count</td><td>group / application / environment / day</td></tr>
+      <tr><td>finding_count</td><td>group / finding_type / application</td></tr>
+      <tr><td>diagnosis_success_rate</td><td>group / provider / model</td></tr>
+      <tr><td>avg_diagnosis_duration_ms</td><td>group / provider</td></tr>
+      <tr><td>jira_created_count</td><td>group / jira_project</td></tr>
+      <tr><td>top_failed_api/service</td><td>group / application / time</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="performance" class="section">
+  <div class="section-title"><div class="num">18</div><div><h2>性能、索引与分区</h2><p class="section-intro">MVP 不做复杂分库分表；优先保证主查询路径上的联合索引、批量写入和大字段控制。</p></div></div>
+
+  <h3>18.1 核心索引</h3>
+  <pre><code>CREATE INDEX idx_case_group_created
+    ON diagnosis_case(group_id, created_at DESC);
+
+CREATE INDEX idx_context_case_time
+    ON context_event(case_id, event_time, sequence_no);
+
+CREATE INDEX idx_context_transaction
+    ON context_event(transaction_id)
+    WHERE transaction_id IS NOT NULL;
+
+CREATE INDEX idx_context_trace
+    ON context_event(trace_id)
+    WHERE trace_id IS NOT NULL;
+
+CREATE INDEX idx_evidence_case_type
+    ON diagnosis_evidence(case_id, evidence_type);
+
+CREATE INDEX idx_finding_case_type
+    ON diagnosis_finding(case_id, finding_type);
+
+CREATE INDEX idx_job_pending
+    ON diagnosis_job(status, next_retry_at, created_at)
+    WHERE status = 'PENDING';</code></pre>
+
+  <h3>18.2 JSONB 使用边界</h3>
+  <table>
+    <thead><tr><th>字段类型</th><th>存储方式</th></tr></thead>
+    <tbody>
+      <tr><td>group_id、case_id、event_time、traceId、type、status、application</td><td>普通列 + B-tree</td></tr>
+      <tr><td>复杂 request/response 摘要、原始第三方响应、扩展字段</td><td>JSONB</td></tr>
+      <tr><td>超大附件 / 视频 / 截图</td><td>对象存储或文件服务，数据库只存 reference</td></tr>
+    </tbody>
+  </table>
+
+  <h3>18.3 分区</h3>
+  <p>当 Context Event 达到千万级以上并出现明显维护压力时，再对 <code>context_event.event_time</code> 做 PostgreSQL 月分区。Hackathon 不实施；DDL 层不要人为引入 hash 分库。</p>
+
+  <h3>18.4 存储过程</h3>
+  <p>核心业务逻辑放 Java。存储过程仅考虑归档、分区维护、retention cleanup、离线聚合；Parser、Evidence、AI 编排不进入数据库过程。</p>
+</section>
+
+<section id="security" class="section">
+  <div class="section-title"><div class="num">19</div><div><h2>安全与数据治理</h2><p class="section-intro">银行环境下，Context 与日志可能包含客户信息、账户信息、Token 和内部代码，安全设计必须进入后端第一版。</p></div></div>
+  <table>
+    <thead><tr><th>风险</th><th>控制</th></tr></thead>
+    <tbody>
+      <tr><td>Request/Response 含敏感字段</td><td>白名单字段采集 + Server-side Masking + 大 Body 截断</td></tr>
+      <tr><td>Authorization / Cookie / Token</td><td>进入数据库前强制删除，不交给 AI</td></tr>
+      <tr><td>源码外发</td><td>Provider Policy；只发送候选代码窗口，支持“Devin 直接 Repo”与“Java 预取并脱敏”两种模式</td></tr>
+      <tr><td>跨 Group 数据访问</td><td>所有 Case 查询强制 organization/group scope；后期接 RBAC</td></tr>
+      <tr><td>审计</td><td>记录谁查询了 Case、谁触发 AI、谁创建 Jira、外部 Provider 请求 ID</td></tr>
+      <tr><td>Retention</td><td>Context / Evidence / 原始附件按 Group Capability Profile 配置保留期</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="deployment" class="section">
+  <div class="section-title"><div class="num">20</div><div><h2>部署与演进路线</h2><p class="section-intro">结合现有 Jenkins + OpenShift 技术栈，第一版保持单体部署、无额外 MQ 依赖。</p></div></div>
+
+  <div class="diagram">
+    <div class="diagram-title">图 10 · OpenShift 部署拓扑</div>
+    <svg viewBox="0 0 1160 480" width="100%">
+      <rect width="1160" height="480" rx="18" fill="#fbfcff"/>
+      <rect x="45" y="55" width="1070" height="350" rx="24" fill="#fff" stroke="#cbd3e1"/>
+      <text x="75" y="85" font-size="13" fill="#667085">OpenShift Namespace: ai-sherlock</text>
+
+      <rect x="90" y="130" width="215" height="125" rx="16" fill="#4f46e5"/>
+      <text x="197" y="166" text-anchor="middle" font-size="17" font-weight="700" fill="white">sherlock-backend</text>
+      <text x="197" y="193" text-anchor="middle" font-size="12" fill="#dedbff">2+ replicas</text>
+      <text x="197" y="216" text-anchor="middle" font-size="12" fill="#dedbff">REST + Worker</text>
+
+      <rect x="390" y="130" width="210" height="125" rx="16" fill="#eef4ff" stroke="#aac3ff"/>
+      <text x="495" y="166" text-anchor="middle" font-size="17" font-weight="700" fill="#2f4f9d">PostgreSQL</text>
+      <text x="495" y="193" text-anchor="middle" font-size="12" fill="#5f719d">Case / Context / Evidence</text>
+      <text x="495" y="216" text-anchor="middle" font-size="12" fill="#5f719d">Job Queue</text>
+
+      <rect x="685" y="100" width="165" height="85" rx="14" fill="#fff" stroke="#bdc7d9"/>
+      <text x="767" y="135" text-anchor="middle" font-size="15" font-weight="700">Elastic</text><text x="767" y="160" text-anchor="middle" font-size="11" fill="#667085">Logs</text>
+      <rect x="685" y="220" width="165" height="85" rx="14" fill="#fff" stroke="#bdc7d9"/>
+      <text x="767" y="255" text-anchor="middle" font-size="15" font-weight="700">Bitbucket</text><text x="767" y="280" text-anchor="middle" font-size="11" fill="#667085">Source</text>
+      <rect x="910" y="100" width="165" height="85" rx="14" fill="#f4f0ff" stroke="#b9adff"/>
+      <text x="992" y="135" text-anchor="middle" font-size="15" font-weight="700" fill="#44379b">Devin</text><text x="992" y="160" text-anchor="middle" font-size="11" fill="#716baa">AI Provider</text>
+      <rect x="910" y="220" width="165" height="85" rx="14" fill="#fff4e5" stroke="#efc16d"/>
+      <text x="992" y="255" text-anchor="middle" font-size="15" font-weight="700" fill="#8a5a00">Jira</text><text x="992" y="280" text-anchor="middle" font-size="11" fill="#806a3e">Ticket</text>
+
+      <g stroke="#7b879f" stroke-width="2">
+        <line x1="305" y1="190" x2="390" y2="190"/>
+        <line x1="305" y1="155" x2="685" y2="142"/><line x1="305" y1="220" x2="685" y2="262"/>
+        <line x1="305" y1="145" x2="910" y2="142"/><line x1="305" y1="235" x2="910" y2="262"/>
+      </g>
+      <text x="580" y="448" text-anchor="middle" font-size="12" fill="#667085">Jenkins → Build Image → OpenShift DeploymentConfig/Deployment → ConfigMap/Secret 管理外部系统连接</text>
+    </svg>
+  </div>
+
+  <h3>20.1 未来微服务拆分</h3>
+  <pre><code>v1  Modular Monolith
+        │
+        ├── Case + Context + Evidence
+        ├── Diagnosis
+        ├── Platform
+        └── Integration
+        ↓
+v2  当规模 / 团队边界真的需要时
+        ├── sherlock-case-service
+        ├── sherlock-diagnosis-service
+        ├── sherlock-platform-service
+        └── sherlock-integration-service</code></pre>
+  <p>不要在 Hackathon 阶段提前支付分布式事务、MQ、链路追踪和服务治理成本。</p>
+</section>
+
+<section id="mvp" class="section">
+  <div class="section-title"><div class="num">21</div><div><h2>Hackathon MVP 范围与开发拆分</h2><p class="section-intro">MVP 只证明一条高价值闭环：前端现场 → 后端 500 → 日志 → 源码 → Devin → Finding → Jira。</p></div></div>
+
+  <h3>21.1 必须做</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>Core Backend</h3>
+      <ul>
+        <li>POST /cases + 202 caseKey</li>
+        <li>diagnosis_case / context_event / evidence / run / finding / jira / job 表</li>
+        <li>Network / Console / Error Parser</li>
+        <li>Case 查询、Context 查询、Finding 查询</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Diagnosis Chain</h3>
+      <ul>
+        <li>URL → service_registry</li>
+        <li>Elastic 查询错误日志</li>
+        <li>Bitbucket 获取候选源文件</li>
+        <li>Devin structured diagnosis</li>
+        <li>一个 Case 至少支持 2 个 Finding</li>
+        <li>按 Finding 自动创建多个 Jira</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>21.2 明确不做</h3>
+  <ul class="columns">
+    <li>复杂 Organization / Group 管理 UI</li>
+    <li>真正的多租户 SaaS</li>
+    <li>Kafka / RabbitMQ</li>
+    <li>ClickHouse</li>
+    <li>复杂数据库分库分表</li>
+    <li>完整 Code Semantic Index</li>
+    <li>完整 Distributed Trace Reconstruction</li>
+    <li>自动生成并合并代码 Patch</li>
+  </ul>
+
+  <h3>21.3 推荐任务拆分</h3>
+  <table>
+    <thead><tr><th>Workstream</th><th>主要产物</th></tr></thead>
+    <tbody>
+      <tr><td>A · Case / DB</td><td>DDL、Entity/Repository、Ingestion API、查询 API</td></tr>
+      <tr><td>B · Parser</td><td>Parser Registry、Network/Console/Error、Normalizer</td></tr>
+      <tr><td>C · Evidence</td><td>Service Registry、Elastic Adapter、Bitbucket Adapter</td></tr>
+      <tr><td>D · AI</td><td>DiagnosisContextBuilder、Devin Provider、Finding Parser</td></tr>
+      <tr><td>E · Jira / Orchestration</td><td>Job Worker、Retry、Jira Adapter、状态机</td></tr>
+    </tbody>
+  </table>
+
+  <div class="success">
+    <b>Demo North Star：</b>输入一个真实问题 Case 后，系统无需开发手工抓日志或搜索仓库，即可输出：
+    <code>Frontend Finding + Backend Finding + Evidence Chain + 多 Jira Ticket</code>。
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title"><div class="num">22</div><div><h2>关键设计决策摘要</h2></div></div>
+  <table>
+    <thead><tr><th>决策</th><th>选择</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>架构形态</td><td>Modular Monolith</td><td>Hackathon 可快速落地，同时保留未来 MS 边界。</td></tr>
+      <tr><td>主数据对象</td><td>Diagnosis Case</td><td>避免与 Jira Issue 混淆，并可承载多个 Finding。</td></tr>
+      <tr><td>AI 输出对象</td><td>Finding 1:N</td><td>一次现场可能同时存在多个前后端问题。</td></tr>
+      <tr><td>Jira 关系</td><td>Finding 1:N Jira</td><td>支持多责任域、不同 Jira Project。</td></tr>
+      <tr><td>Context 存储</td><td>统一 context_event</td><td>类型可扩展，主查询模型简单。</td></tr>
+      <tr><td>Schema</td><td>Relation + JSONB</td><td>兼顾查询性能与上下文扩展。</td></tr>
+      <tr><td>日志接口</td><td>LogSearchClient / 优先 Elasticsearch</td><td>避免绑定 Kibana UI 实现。</td></tr>
+      <tr><td>AI Provider</td><td>DiagnosisProvider abstraction</td><td>Devin 可替换。</td></tr>
+      <tr><td>异步</td><td>PostgreSQL Job Queue</td><td>MVP 避免 MQ，引入最少基础设施。</td></tr>
+      <tr><td>Group</td><td>表与 FK 先设计，功能后实现</td><td>保证未来权限和统计扩展不重构 Case。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="footer">
+  AI Sherlock · Backend Technical Design · V1.2 · 2026-08-30
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,36 @@
+/* 数据接收页：与侧边栏同一套卡片承载，仅换视觉不改信息结构 */
+
+.report-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+}
+
+.report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-lg);
+}
+
+/* Tabs 直接作为内容卡片承载 */
+.report-page > .ant-tabs {
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-line);
+  border-radius: var(--sh-radius-lg);
+  padding: 4px 16px 16px;
+}
+
+.report-page > .ant-tabs > .ant-tabs-nav::before {
+  border-bottom-color: var(--sh-line);
+}
+
+.report-empty {
+  padding: 24px;
+}

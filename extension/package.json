@@ -1,0 +1,34 @@
+{
+  "name": "ai-sherlock-extension",
+  "description": "AI Sherlock extension: annotated screenshots, recording and automatic Network/Console evidence",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "preview": "node scripts/preview.mjs",
+    "preview:fast": "node scripts/preview.mjs --no-build",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6",
+    "antd": "^6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "rrweb": "^2.1.1",
+    "rrweb-player": "^2.1.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@rrweb/types": "^2.1.1",
+    "@types/chrome": "^0.0.280",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@wxt-dev/module-react": "^1.2.2",
+    "typescript": "^5.9.0",
+    "web-ext": "^10.6.0",
+    "wxt": "^0.21.4"
+  }
+}
