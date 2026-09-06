@@ -13,8 +13,8 @@ export default defineConfig({
     description:
       'Report issues with annotated screenshots, recording and automatic Network / Console / error-stack evidence',
     permissions: ['sidePanel', 'activeTab', 'tabs', 'storage'],
-    // captureVisibleTab 需要 host 权限；activeTab 临时授权切页即失效，不稳定
-    host_permissions: ['<all_urls>'],
+    // 仅允许访问后端 API；页面截图/内容脚本通过 activeTab 与 manifest content_scripts matches 授权
+    host_permissions: ['https://api.aisherlock.vip/*'],
     // public/icon/* 由 assets/logo.png 生成：
     //   sips -c 526 526 assets/logo.png --out /tmp/tile.png
     //   for s in 16 32 48 128; do sips -z $s $s /tmp/tile.png --out public/icon/$s.png; done

@@ -13,7 +13,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { loadReport } from '../core/db';
+import { loadCase, loadReport } from '../core/db';
 import { BRAND_LOGO_URL } from './BrandLogo';
 import type { IssuePackage } from '../core/types';
 import ReplayPlayer from './ReplayPlayer';
@@ -30,7 +30,10 @@ export default function ReportApp() {
   const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    loadReport()
+    const params = new URLSearchParams(window.location.search);
+    const caseId = params.get('caseId');
+    const loader = caseId ? loadCase(caseId) : loadReport();
+    loader
       .then((r) => {
         if (r) {
           // 数据接收页控制台可直接查看/复制 payload
@@ -208,6 +211,15 @@ export default function ReportApp() {
                     )}
                     <Descriptions.Item label="Severity">
                       {report.severity ?? '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Status">
+                      {report.status ? (
+                        <Tag color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? 'green' : 'default'}>
+                          {report.status}
+                        </Tag>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     {report.recordingSeconds != null &&
                       report.recordingSeconds > 0 && (

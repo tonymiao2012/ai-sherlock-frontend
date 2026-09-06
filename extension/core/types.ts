@@ -101,11 +101,13 @@ export interface EvidenceDump {
 export interface IssuePackage {
   issueId: string;
   sessionId: string;
+  caseKey?: string;
   title: string;
   description: string;
   steps?: string;
   expectedResult?: string;
   severity?: string;
+  status?: string;
   /** 截图（含批注后的 dataURL 与描述） */
   screenshots: ScreenshotItem[];
   pageContext: PageContext;
