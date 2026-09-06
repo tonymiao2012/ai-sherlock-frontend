@@ -6,7 +6,6 @@ import { LoginDialog } from './components/LoginDialog';
 import { HomePage } from './pages/HomePage';
 import { ChromePluginPage } from './pages/ChromePluginPage';
 import { ReplaySdkPage } from './pages/ReplaySdkPage';
-import { DocsPage } from './pages/DocsPage';
 import { ApiDocsPage } from './pages/ApiDocsPage';
 import { BlogPage } from './pages/BlogPage';
 import { ChangelogPage } from './pages/ChangelogPage';
