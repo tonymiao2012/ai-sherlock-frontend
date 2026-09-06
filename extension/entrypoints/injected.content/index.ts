@@ -208,7 +208,7 @@ function hookFetch() {
     const req = input instanceof Request ? input : undefined;
     const url =
       typeof input === 'string'
-        ? input
+        ? new URL(input, location.href).href
         : input instanceof URL
           ? input.href
           : input.url;
@@ -273,7 +273,8 @@ function hookXhr() {
     url: string | URL,
     ...rest: unknown[]
   ) {
-    this.__sherlock = { method: method.toUpperCase(), url: String(url) };
+    const resolvedUrl = typeof url === 'string' ? new URL(url, location.href).href : url.href;
+    this.__sherlock = { method: method.toUpperCase(), url: resolvedUrl };
     return (originalOpen as any).call(this, method, url, ...rest);
   };
 

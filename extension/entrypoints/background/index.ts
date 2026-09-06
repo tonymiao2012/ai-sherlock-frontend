@@ -2,7 +2,7 @@
 // 1. 点击图标打开 Side Panel
 // 2. 可见区域截图（captureVisibleTab）
 // 3. 提交时向页面拉取证据、组装问题包、写入 IndexedDB、打开数据接收页
-import { loadReport, saveCase, saveReport } from '../../core/db';
+import { loadCases, loadReport, saveCase, saveReport } from '../../core/db';
 import { sendToActiveTab, uid, type RuntimeMessage } from '../../core/messages';
 import type {
   EvidenceDump,
@@ -39,6 +39,10 @@ async function handleMessage(msg: RuntimeMessage): Promise<unknown> {
       return submitIssue(msg.form, msg.screenshots);
     case 'get-report':
       return { ok: true, report: await loadReport() };
+    case 'fetch-cases':
+      return fetchCasesList();
+    case 'fetch-case-detail':
+      return fetchCaseDetail(msg.caseKey);
     case 'evidence-event':
       // sidepanel 自行订阅，background 仅 ack，避免 "no listener" 报错
       return { ok: true };
@@ -148,6 +152,94 @@ async function getIngestToken(): Promise<string> {
   return result.ingestToken || '849d5c028ce7bd3ecf54690e1a0457bd5f6abfbb762accff8ee730f5de3166f6';
 }
 
+async function apiHeaders(): Promise<Record<string, string>> {
+  const token = await getIngestToken();
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Ingest ${token}`,
+  };
+}
+
+async function fetchCasesList(): Promise<{
+  ok: boolean;
+  cases?: IssuePackage[];
+  error?: string;
+}> {
+  try {
+    const headers = await apiHeaders();
+    const resp = await fetch('https://api.aisherlock.vip/api/v1/cases?page=0&size=50', {
+      headers,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return { ok: false, error: `API ${resp.status}: ${text.slice(0, 200)}` };
+    }
+    const data = (await resp.json()) as {
+      items?: Array<{ caseKey: string; status: string; title?: string; updatedAt?: string }>;
+    };
+    const localCases = await loadCases();
+    const statusMap = new Map(
+      (data.items ?? []).map((i) => [i.caseKey, i])
+    );
+    const merged = localCases.map((c) => {
+      const remote = c.caseKey ? statusMap.get(c.caseKey) : undefined;
+      if (remote) {
+        return { ...c, status: remote.status ?? c.status };
+      }
+      return c;
+    });
+    for (const c of merged) {
+      await saveCase(c);
+    }
+    return { ok: true, cases: merged };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+async function fetchCaseDetail(
+  caseKey: string
+): Promise<{ ok: boolean; case?: IssuePackage; error?: string }> {
+  try {
+    const headers = await apiHeaders();
+    const resp = await fetch(`https://api.aisherlock.vip/api/v1/cases/${encodeURIComponent(caseKey)}`, {
+      headers,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return { ok: false, error: `API ${resp.status}: ${text.slice(0, 200)}` };
+    }
+    const detail = (await resp.json()) as {
+      caseKey: string;
+      title?: string;
+      description?: string;
+      status?: string;
+      latestDiagnosis?: {
+        status?: string;
+        summary?: string;
+      } | null;
+      findings?: Array<Record<string, unknown> & { id: string }>;
+    };
+    const localCases = await loadCases();
+    const local = localCases.find((c) => c.caseKey === caseKey);
+    if (!local) {
+      return { ok: false, error: `Case ${caseKey} not found locally` };
+    }
+    if (detail.status) local.status = detail.status;
+    if (detail.latestDiagnosis?.summary || detail.findings) {
+      local.diagnosis = {
+        complete: detail.latestDiagnosis?.status === 'COMPLETED',
+        findings: detail.findings ?? [],
+        caseSummary: detail.latestDiagnosis?.summary ?? '',
+      };
+    }
+    await saveCase(local);
+    return { ok: true, case: local };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 function buildPackage(
   form: UserFormInput,
   screenshots: ScreenshotItem[],
@@ -182,6 +274,7 @@ function buildPackage(
     ...(evidenceError ? { evidenceError } : {}),
     rrwebEvents: dump?.rrwebEvents?.length ? dump.rrwebEvents : undefined,
     recordingSeconds: dump?.recordingSeconds,
+    scope: { sourceApplication: 'ai-sherlock-web', environment: 'poc' },
     meta: { pluginVersion: '0.1.0-mvp', assembledAt: now },
   };
 }

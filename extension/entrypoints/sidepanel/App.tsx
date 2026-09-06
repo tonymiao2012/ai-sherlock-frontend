@@ -2,9 +2,10 @@
 // 流程：截图 -> 页面内微信式批注（不弹新窗口）-> 成图内嵌；Record -> 确认内嵌；提交打印 payload
 // 未提交内容（标题/描述/截图/录制）自动存 IndexedDB，面板重开后可恢复
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Modal, Space, Tag, message } from 'antd';
+import { Button, Modal, Space, Spin, Tag, message } from 'antd';
 import {
   CameraOutlined,
+  CheckCircleFilled,
   CheckOutlined,
   CloseOutlined,
   DeleteOutlined,
@@ -23,21 +24,6 @@ interface RecordInfo {
 }
 
 type Stage = { kind: 'compose' } | { kind: 'record-confirm'; info: RecordInfo };
-
-const STATUS_LABEL: Record<string, string> = {
-  RECEIVED: 'Received',
-  DIAGNOSING: 'Diagnosing',
-  DIAGNOSED: 'Verify 成功',
-  VERIFIED: 'Verify 成功',
-  VERIFY_SUCCESS: 'Verify 成功',
-  COMPLETED: 'Completed',
-  FAILED: 'Failed',
-};
-
-function statusLabel(status?: string): string {
-  if (!status) return 'Received';
-  return STATUS_LABEL[status.toUpperCase()] ?? status;
-}
 
 function isResolvedStatus(status?: string): boolean {
   const s = status?.toUpperCase() ?? '';
@@ -67,6 +53,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('submit');
   const [cases, setCases] = useState<IssuePackage[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<{ caseKey?: string } | null>(null);
   const unverifiedCount = useMemo(
     () => cases.filter((c) => !isResolvedStatus(c.status)).length,
     [cases]
@@ -107,9 +94,6 @@ export default function App() {
             draft.record
           ) {
             message.info('Restored your unsent draft');
-            requestAnimationFrame(() => {
-              if (textRef.current) autoGrow(textRef.current);
-            });
           }
         }
         setDraftReady(true);
@@ -141,13 +125,21 @@ export default function App() {
     };
   }, [draftReady, title, text, shots, recordInfo]);
 
-  // 加载 Case 列表
+  // 加载 Case 列表（每次切到 Cases tab 都从后端同步最新状态）
   useEffect(() => {
     if (activeTab === 'cases') {
       setCasesLoading(true);
-      loadCases()
-        .then(setCases)
-        .catch(() => setCases([]))
+      sendRuntime<{ ok: boolean; cases?: IssuePackage[]; error?: string }>({
+        type: 'fetch-cases',
+      })
+        .then((resp) => {
+          if (resp?.ok && resp.cases) {
+            setCases(resp.cases);
+          } else {
+            return loadCases().then(setCases);
+          }
+        })
+        .catch(() => loadCases().then(setCases))
         .finally(() => setCasesLoading(false));
     }
   }, [activeTab]);
@@ -271,11 +263,6 @@ export default function App() {
     }
   };
 
-  const autoGrow = (el: HTMLTextAreaElement) => {
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
-  };
-
   const submit = async () => {
     if (!text.trim() && shots.length === 0 && !recordInfo) {
       message.warning('Add a description, a screenshot or a recording first');
@@ -302,19 +289,7 @@ export default function App() {
         setShots([]);
         setRecordInfo(null);
         await clearDraft();
-        message.success('Submitted');
-        // 成功后弹框提示并自动切换到 Cases 页
-        Modal.success({
-          title: 'Submitted successfully',
-          content: (
-            <>
-              <div>Your case has been submitted to the backend.</div>
-              {resp.caseKey && <div style={{ marginTop: 8 }}>Case key: {resp.caseKey}</div>}
-            </>
-          ),
-          onOk: () => setActiveTab('cases'),
-        });
-        setActiveTab('cases');
+        setSuccessInfo({ caseKey: resp.caseKey });
       } else {
         message.error(`Submit failed: ${resp?.error}`);
       }
@@ -346,7 +321,7 @@ export default function App() {
               transition: 'all 0.2s',
             }}
           >
-            Submit
+            Issue
           </button>
           <button
             onClick={() => setActiveTab('cases')}
@@ -384,242 +359,238 @@ export default function App() {
         </div>
       </header>
 
-      {/* 内容区 */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* 内容滚动区 */}
-          <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-            {activeTab === 'submit' && (
-              <>
-                {/* 工具栏 */}
-                <div style={{ marginBottom: 16 }}>
-                  {stage.kind === 'compose' ? (
-                    <Space size={8}>
-                      <Button
-                        icon={<CameraOutlined />}
-                        loading={capturing}
-                        onClick={capture}
-                      >
-                        Capture
-                      </Button>
-                      <Button
-                        icon={<VideoCameraOutlined />}
-                        danger={recording}
-                        type={recording ? 'primary' : 'default'}
-                        onClick={toggleRecording}
-                      >
-                        {recording ? `Stop ${recordSeconds}s` : 'Record'}
-                      </Button>
-                    </Space>
-                  ) : (
-                    <Button
-                      size="small"
-                      icon={<CloseOutlined />}
-                      onClick={() => setStage({ kind: 'compose' })}
-                    >
-                      Back to editor
-                    </Button>
-                  )}
-                  {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC</span>}
-                </div>
-
-                {/* 编辑区 */}
-                {stage.kind === 'compose' && (
-                  <div style={{
-                    background: '#fff',
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 16,
-                  }}>
-                    <input
-                      style={{
-                        width: '100%',
-                        border: 'none',
-                        borderBottom: '1px solid #e8e8e8',
-                        padding: '8px 0',
-                        fontSize: 16,
-                        fontWeight: 500,
-                        outline: 'none',
-                        background: 'transparent',
-                        marginBottom: 12,
-                      }}
-                      placeholder="Issue title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                    <textarea
-                      ref={textRef}
-                      style={{
-                        width: '100%',
-                        border: 'none',
-                        padding: 0,
-                        fontSize: 14,
-                        outline: 'none',
-                        background: 'transparent',
-                        resize: 'vertical',
-                        minHeight: 120,
-                        fontFamily: 'inherit',
-                      }}
-                      placeholder="What happened, what it breaks, what you expected…"
-                      value={text}
-                      rows={6}
-                      onChange={(e) => {
-                        setText(e.target.value);
-                        autoGrow(e.target);
-                      }}
-                    />
-
-                    {shots.length > 0 && (
-                      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {shots.map((s, idx) => (
-                          <div key={s.id} style={{
-                            border: '1px solid #e8e8e8',
-                            borderRadius: 8,
-                            overflow: 'hidden',
-                            background: '#fff',
-                          }}>
-                            <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
-                            <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                              <span>
-                                Shot {idx + 1}
-                                {s.annotated && <span style={{ marginLeft: 8, color: 'var(--sh-accent)' }}>✓ Annotated</span>}
-                              </span>
-                              <Space size={4}>
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  icon={<EditOutlined />}
-                                  loading={editingId === s.id}
-                                  onClick={() => reannotate(s)}
-                                >
-                                  Annotate
-                                </Button>
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
-                                />
-                              </Space>
-                            </div>
-                            {s.note && <div style={{ padding: '0 12px 8px', fontSize: 12, color: '#666' }}>{s.note}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {recordInfo && (
-                      <div style={{
-                        marginTop: 16,
-                        padding: 12,
-                        background: '#fff',
-                        border: '1px solid #e8e8e8',
-                        borderRadius: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 13,
-                      }}>
-                        <span>
-                          <VideoCameraOutlined style={{ marginRight: 8 }} />
-                          Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
-                        </span>
-                        <Button
-                          size="small"
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => setRecordInfo(null)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {stage.kind === 'record-confirm' && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '32px 16px',
-                    background: '#fff',
-                    borderRadius: 12,
-                  }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}></div>
-                    <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert it?</div>
-                    <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
-                      {stage.info.seconds}s · {stage.info.eventCount} events
-                    </div>
-                    <Space size={12}>
-                      <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>
-                        Discard
-                      </Button>
-                      <Button
-                        type="primary"
-                        icon={<CheckOutlined />}
-                        style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
-                        onClick={() => {
-                          setRecordInfo(stage.info);
-                          setStage({ kind: 'compose' });
-                          message.success('Recording inserted');
-                        }}
-                      >
-                        Insert
-                      </Button>
-                    </Space>
-                  </div>
-                )}
-              </>
-            )}
-
-            {activeTab === 'cases' && (
-              <div>
-                {casesLoading ? (
-                  <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>
-                ) : cases.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-                    <div>No cases yet</div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {cases.map((c) => (
-                      <div
-                        key={c.issueId}
-                        onClick={() => {
-                          chrome.tabs.create({
-                            url: chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`),
-                          });
-                        }}
-                        style={{
-                          padding: 16,
-                          border: '1px solid #e8e8e8',
-                          borderRadius: 12,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          background: '#fff',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#B4E968';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(180,233,104,0.3)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = '#e8e8e8';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      >
-                        <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{c.title || 'Untitled'}</div>
-                        <div style={{ fontSize: 12, color: '#666', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'monospace' }}>{c.caseKey ?? c.issueId}</span>
-                          <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
-                          <Tag color={statusColor(c.status)}>{statusLabel(c.status)}</Tag>
-                          {c.severity && <Tag color={c.severity === 'high' ? 'red' : c.severity === 'medium' ? 'orange' : 'green'}>{c.severity}</Tag>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+      {/* 内容区：Spin 改为绝对定位遮罩，避免包裹层打断 flex 布局 */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minHeight: 0 }}>
+          {activeTab === 'submit' && stage.kind === 'compose' && (
+            <>
+              {/* 工具栏 */}
+              <div style={{ padding: '12px 16px 8px', flexShrink: 0 }}>
+                <Space size={8}>
+                  <Button
+                    icon={<CameraOutlined />}
+                    loading={capturing}
+                    onClick={capture}
+                  >
+                    Capture
+                  </Button>
+                  <Button
+                    icon={<VideoCameraOutlined />}
+                    danger={recording}
+                    type={recording ? 'primary' : 'default'}
+                    onClick={toggleRecording}
+                  >
+                    {recording ? `Stop ${recordSeconds}s` : 'Record'}
+                  </Button>
+                </Space>
+                {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC</span>}
               </div>
-            )}
-          </div>
+
+              {/* 编辑区：标题 + 文本框占满剩余空间 */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                margin: '0 16px 12px',
+                background: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                minHeight: 0,
+              }}>
+                <input
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    borderBottom: '1px solid #e8e8e8',
+                    padding: '8px 0',
+                    fontSize: 16,
+                    fontWeight: 500,
+                    outline: 'none',
+                    background: 'transparent',
+                    marginBottom: 12,
+                    flexShrink: 0,
+                  }}
+                  placeholder="Issue title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <textarea
+                  ref={textRef}
+                  style={{
+                    width: '100%',
+                    flex: 1,
+                    border: 'none',
+                    padding: 0,
+                    fontSize: 14,
+                    outline: 'none',
+                    background: 'transparent',
+                    resize: 'none',
+                    minHeight: 0,
+                    fontFamily: 'inherit',
+                  }}
+                  placeholder="What happened, what it breaks, what you expected…"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                />
+              </div>
+
+              {/* 截图 & 录制信息（可滚动） */}
+              {(shots.length > 0 || recordInfo) && (
+                <div style={{ flexShrink: 0, maxHeight: '30%', overflow: 'auto', padding: '8px 16px' }}>
+                  {shots.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {shots.map((s, idx) => (
+                        <div key={s.id} style={{
+                          border: '1px solid #e8e8e8',
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          background: '#fff',
+                        }}>
+                          <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
+                          <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                            <span>
+                              Shot {idx + 1}
+                              {s.annotated && <span style={{ marginLeft: 8, color: 'var(--sh-accent)' }}>✓ Annotated</span>}
+                            </span>
+                            <Space size={4}>
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<EditOutlined />}
+                                loading={editingId === s.id}
+                                onClick={() => reannotate(s)}
+                              >
+                                Annotate
+                              </Button>
+                              <Button
+                                size="small"
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
+                              />
+                            </Space>
+                          </div>
+                          {s.note && <div style={{ padding: '0 12px 8px', fontSize: 12, color: '#666' }}>{s.note}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {recordInfo && (
+                    <div style={{
+                      marginTop: 12,
+                      padding: 12,
+                      background: '#fff',
+                      border: '1px solid #e8e8e8',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 13,
+                    }}>
+                      <span>
+                        <VideoCameraOutlined style={{ marginRight: 8 }} />
+                        Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
+                      </span>
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => setRecordInfo(null)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'submit' && stage.kind === 'record-confirm' && (
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '32px 16px',
+                background: '#fff',
+                borderRadius: 12,
+              }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}></div>
+                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert it?</div>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
+                  {stage.info.seconds}s · {stage.info.eventCount} events
+                </div>
+                <Space size={12}>
+                  <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>
+                    Discard
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<CheckOutlined />}
+                    style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
+                    onClick={() => {
+                      setRecordInfo(stage.info);
+                      setStage({ kind: 'compose' });
+                      message.success('Recording inserted');
+                    }}
+                  >
+                    Insert
+                  </Button>
+                </Space>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'cases' && (
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              {casesLoading ? (
+                <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>
+              ) : cases.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+                  <div>No cases yet</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {cases.map((c) => (
+                    <div
+                      key={c.issueId}
+                      onClick={async () => {
+                        if (c.caseKey) {
+                          await sendRuntime({ type: 'fetch-case-detail', caseKey: c.caseKey });
+                        }
+                        chrome.tabs.create({
+                          url: chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`),
+                        });
+                      }}
+                      style={{
+                        padding: 16,
+                        border: '1px solid #e8e8e8',
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: '#fff',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#B4E968';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(180,233,104,0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e8e8e8';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{c.title || 'Untitled'}</div>
+                      <div style={{ fontSize: 12, color: '#666', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'monospace' }}>{c.caseKey ?? c.issueId}</span>
+                        <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
+                        <Tag color={statusColor(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
+                        {c.severity && <Tag color={c.severity === 'high' ? 'red' : c.severity === 'medium' ? 'orange' : 'green'}>{c.severity}</Tag>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 底部 Submit 按钮（仅在 Submit tab 显示） */}
           {activeTab === 'submit' && (
@@ -627,6 +598,7 @@ export default function App() {
               padding: '12px 16px',
               borderTop: '1px solid #e8e8e8',
               background: '#fff',
+              flexShrink: 0,
             }}>
               <Button
                 block
@@ -641,7 +613,55 @@ export default function App() {
               </Button>
             </div>
           )}
+          {/* 提交中遮罩 */}
+          {submitting && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.65)',
+            }}>
+              <Spin size="large" description="Submitting...">{null}</Spin>
+            </div>
+          )}
       </div>
+
+      {/* 提交成功弹窗：图标与文字等高对齐，按钮居中 */}
+      <Modal
+        open={!!successInfo}
+        centered
+        width={380}
+        onCancel={() => setSuccessInfo(null)}
+        footer={
+          <div style={{ textAlign: 'center' }}>
+            <Button
+              type="primary"
+              style={{ minWidth: 140, background: '#B4E968', borderColor: '#B4E968', color: 'var(--sh-brand-ink)' }}
+              onClick={() => {
+                setSuccessInfo(null);
+                setActiveTab('cases');
+              }}
+            >
+              View Cases
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 4px' }}>
+          <CheckCircleFilled style={{ color: '#52c41a', fontSize: 44, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.5 }}>Submitted successfully</div>
+            {successInfo?.caseKey && (
+              <div style={{ fontSize: 14, color: '#666', lineHeight: 1.5 }}>
+                Case {successInfo.caseKey} created
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
