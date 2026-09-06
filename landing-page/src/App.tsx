@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { ChromePluginPage } from './pages/ChromePluginPage';
 import { ReplaySdkPage } from './pages/ReplaySdkPage';
 import { DocsPage } from './pages/DocsPage';
+import { ApiDocsPage } from './pages/ApiDocsPage';
 import { BlogPage } from './pages/BlogPage';
 import { ChangelogPage } from './pages/ChangelogPage';
 
@@ -22,7 +23,7 @@ export default function App() {
           <Route path="/" element={<HomePage onLogin={openLogin} />} />
           <Route path="/product/chrome" element={<ChromePluginPage />} />
           <Route path="/product/replay" element={<ReplaySdkPage />} />
-          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs" element={<ApiDocsPage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
         </Routes>
