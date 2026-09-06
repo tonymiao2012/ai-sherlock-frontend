@@ -193,7 +193,7 @@ export function ApiDocsPage() {
           {/* Overview */}
           <div id="overview" style={{ marginBottom: '56px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
-              主流程概览
+              概述
             </h2>
             <CodeBlock>{`用户通过 Google SSO 登录
   → 插件提交 Case
