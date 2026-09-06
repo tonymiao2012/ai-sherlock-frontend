@@ -1,0 +1,54 @@
+name: Frontend Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web apps
+        run: pnpm build
+        env:
+          VITE_ADMIN_URL: /admin/
+          VITE_LANDING_URL: /
+          VITE_API_BASE: ${{ vars.VITE_API_BASE || '/api/v1' }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_DOCS_URL: ${{ vars.VITE_DOCS_URL }}
+          VITE_CHROME_STORE_URL: ${{ vars.VITE_CHROME_STORE_URL }}
+
+      - name: Upload landing page
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-page
+          path: landing-page/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload admin page
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-page
+          path: admin-page/dist/
+          if-no-files-found: error
+          retention-days: 7
