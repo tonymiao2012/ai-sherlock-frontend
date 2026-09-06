@@ -92,6 +92,8 @@
 
 .lp-nav__spacer {
   flex: 1;
+  height: 100%;
+  cursor: pointer;
 }
 
 .lp-nav__install {
@@ -210,11 +212,14 @@
 
 .lp-nav__panel-label {
   padding: 0 12px 6px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--sh-muted);
-  text-transform: uppercase;
+  color: var(--sh-ink);
+}
+
+.lp-nav__panel-group .lp-nav__item {
+  padding-left: 22px;
+  font-size: 13px;
 }
 
 /* ② Hero：细网格底纹 + 居中版式 */
@@ -900,6 +905,136 @@
 @media (max-width: 420px) {
   .lp-brand span {
     display: none;
+  }
+}
+
+/* ── API Docs Page ── */
+.apidocs {
+  padding-top: 100px;
+  padding-bottom: 80px;
+}
+
+.apidocs__inner {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+
+.apidocs__sidebar {
+  position: sticky;
+  top: 100px;
+  min-width: 200px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.apidocs__sidebar a {
+  display: block;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #475569;
+  text-decoration: none;
+  font-weight: 400;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.apidocs__sidebar a.active {
+  color: #4a36e3;
+  background: #ede9fe;
+  font-weight: 500;
+}
+
+.apidocs__content {
+  flex: 1;
+  max-width: 800px;
+  min-width: 0;
+}
+
+.apidocs__mobile-nav {
+  display: none;
+}
+
+@media (max-width: 940px) {
+  .apidocs {
+    padding-top: 80px;
+    padding-bottom: 60px;
+  }
+
+  .apidocs__inner {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .apidocs__sidebar {
+    display: none;
+  }
+
+  .apidocs__mobile-nav {
+    display: block;
+    position: sticky;
+    top: 60px;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 8px 0;
+    margin-bottom: 24px;
+  }
+
+  .apidocs__mobile-nav-inner {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 0 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .apidocs__mobile-nav-inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .apidocs__mobile-nav a {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #475569;
+    text-decoration: none;
+    background: #f1f5f9;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+
+  .apidocs__mobile-nav a.active {
+    color: #fff;
+    background: #4a36e3;
+  }
+
+  .apidocs__content {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .apidocs {
+    padding-top: 90px;
+  }
+
+  .apidocs__mobile-nav {
+    top: 54px;
+  }
+
+  .apidocs-table th,
+  .apidocs-table td {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 }
 
