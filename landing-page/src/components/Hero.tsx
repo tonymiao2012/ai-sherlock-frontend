@@ -1,11 +1,24 @@
+import { useState, useEffect } from 'react';
 import { FlowMock } from './mocks';
 import { CHROME_STORE_URL } from '../assets';
 import { IconArrowUpRight, IconBolt, IconChrome, IconGoogle, IconStar } from './icons';
+import { fetchStatistics, type Statistics } from '../services/api';
 
 /** 上线公告先不展示，等有真实变更 Log 可挂再打开 */
 const SHOW_NOTICE = false;
 
 export function Hero({ onLogin }: { onLogin: () => void }) {
+  const [stats, setStats] = useState<Statistics | null>(null);
+
+  useEffect(() => {
+    fetchStatistics()
+      .then(setStats)
+      .catch((err) => console.warn('Failed to fetch statistics:', err));
+  }, []);
+
+  const teams = stats ? Math.max(60, Math.floor(stats.totalCases / 100)) : 60;
+  const cases = stats ? stats.totalCases : 10000;
+
   return (
     <section className="lp-hero" id="top">
       <div className="lp-container lp-hero__inner">
@@ -50,11 +63,11 @@ export function Hero({ onLogin }: { onLogin: () => void }) {
           </span>
           <span className="lp-hero__dot">·</span>
           <span>
-            已服务 <strong>60+</strong> 内部团队
+            已服务 <strong>{teams}+</strong> 内部团队
           </span>
           <span className="lp-hero__dot">·</span>
           <span>
-            累计诊断 <strong>10,000+</strong> Case
+            累计诊断 <strong>{cases.toLocaleString()}+</strong> Case
           </span>
         </div>
 
