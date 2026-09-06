@@ -103,7 +103,7 @@ export function Nav({ onLogin }: { onLogin: () => void }) {
         })}
       </nav>
 
-      <span className="lp-nav__spacer" />
+      <span className="lp-nav__spacer" onClick={() => setOpen((v) => !v)} />
 
       <a
         className="lp-btn lp-btn--ghost lp-btn--sm lp-nav__install lp-only-pc"

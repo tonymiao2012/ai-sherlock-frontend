@@ -47,6 +47,7 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
       border: '1px solid #e2e8f0',
       marginBottom: '16px',
       fontFamily: 'monospace',
+      flexWrap: 'wrap',
     }}>
       <span style={{
         background: methodColors[method] || '#64748b',
@@ -55,10 +56,11 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
         borderRadius: '4px',
         fontSize: '12px',
         fontWeight: 600,
+        flexShrink: 0,
       }}>
         {method}
       </span>
-      <span style={{ fontSize: '14px', color: '#1e293b' }}>{path}</span>
+      <span style={{ fontSize: '14px', color: '#1e293b', wordBreak: 'break-all' }}>{path}</span>
       {status && (
         <span style={{
           marginLeft: 'auto',
@@ -67,6 +69,7 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
           background: '#e2e8f0',
           padding: '2px 8px',
           borderRadius: '4px',
+          flexShrink: 0,
         }}>
           {status}
         </span>
@@ -77,7 +80,7 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
 
 function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
   return (
-    <div style={{ overflowX: 'auto', margin: '16px 0' }}>
+    <div className="apidocs-table" style={{ overflowX: 'auto', margin: '16px 0' }}>
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
@@ -91,6 +94,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
                 padding: '12px 16px',
                 fontWeight: 600,
                 color: '#475569',
+                whiteSpace: 'nowrap',
               }}>
                 {h}
               </th>
@@ -104,6 +108,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
                 <td key={j} style={{
                   padding: '12px 16px',
                   color: '#334155',
+                  wordBreak: 'break-word',
                 }}>
                   {cell}
                 </td>
@@ -146,50 +151,31 @@ export function ApiDocsPage() {
     };
   }, []);
 
+  const navLinks = sections.map((s) => (
+    <a
+      key={s.id}
+      href="#"
+      className={activeSection === s.id ? 'active' : ''}
+      onClick={(e) => {
+        e.preventDefault();
+        setActiveSection(s.id);
+        document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' });
+      }}
+    >
+      {s.label}
+    </a>
+  ));
+
   return (
-    <section className="lp-section" style={{ paddingTop: 100, paddingBottom: 80 }}>
-      <div className="lp-container" style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
-        {/* Sidebar */}
-        <aside style={{
-          position: 'sticky',
-          top: '100px',
-          minWidth: '200px',
-          padding: '20px',
-          background: '#f8fafc',
-          borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-        }}>
-          <nav>
-            {sections.map(s => (
-              <a
-                key={s.id}
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveSection(s.id);
-                  document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                style={{
-                  display: 'block',
-                  padding: '8px 12px',
-                  marginBottom: '4px',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  color: activeSection === s.id ? '#4a36e3' : '#475569',
-                  background: activeSection === s.id ? '#ede9fe' : 'transparent',
-                  textDecoration: 'none',
-                  fontWeight: activeSection === s.id ? 500 : 400,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {s.label}
-              </a>
-            ))}
-          </nav>
+    <section className="lp-section apidocs">
+      <div className="lp-container apidocs__inner">
+        {/* Sidebar — desktop only */}
+        <aside className="apidocs__sidebar">
+          <nav>{navLinks}</nav>
         </aside>
 
         {/* Content */}
-        <div style={{ flex: 1, maxWidth: '800px' }}>
+        <div className="apidocs__content">
           {/* Overview */}
           <div id="overview" style={{ marginBottom: '56px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
