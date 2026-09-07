@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const sections = [
   { id: 'overview', label: '概述' },
@@ -9,23 +11,27 @@ const sections = [
   { id: 'api-3', label: 'Case 列表' },
   { id: 'api-4', label: 'Case 详情' },
   { id: 'api-5', label: 'Auto Fix' },
-  { id: 'workflow', label: '联调顺序' },
 ];
 
-function CodeBlock({ children }: { children: string }) {
+function CodeBlock({ children, language = 'json' }: { children: string; language?: string }) {
   return (
-    <pre style={{
-      background: '#1e1e2e',
-      color: '#cdd6f4',
-      padding: '16px',
-      borderRadius: '8px',
-      overflow: 'auto',
-      fontSize: '13px',
-      lineHeight: '1.5',
-      margin: '16px 0',
-    }}>
-      <code>{children}</code>
-    </pre>
+    <SyntaxHighlighter
+      language={language}
+      style={vscDarkPlus}
+      customStyle={{
+        background: '#1e1e2e',
+        padding: '16px',
+        borderRadius: '8px',
+        fontSize: '13px',
+        lineHeight: '1.5',
+        margin: '16px 0',
+      }}
+      codeTagProps={{
+        style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' },
+      }}
+    >
+      {children}
+    </SyntaxHighlighter>
   );
 }
 
@@ -42,9 +48,9 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
       alignItems: 'center',
       gap: '12px',
       padding: '12px 16px',
-      background: '#f8fafc',
+      background: 'var(--sh-sunken)',
       borderRadius: '8px',
-      border: '1px solid #e2e8f0',
+      border: '1px solid var(--sh-line)',
       marginBottom: '16px',
       fontFamily: 'monospace',
       flexWrap: 'wrap',
@@ -60,13 +66,13 @@ function Endpoint({ method, path, status }: { method: string; path: string; stat
       }}>
         {method}
       </span>
-      <span style={{ fontSize: '14px', color: '#1e293b', wordBreak: 'break-all' }}>{path}</span>
+      <span style={{ fontSize: '14px', color: 'var(--sh-ink)', wordBreak: 'break-all' }}>{path}</span>
       {status && (
         <span style={{
           marginLeft: 'auto',
           fontSize: '12px',
-          color: '#64748b',
-          background: '#e2e8f0',
+          color: 'var(--sh-text)',
+          background: 'var(--sh-sunken)',
           padding: '2px 8px',
           borderRadius: '4px',
           flexShrink: 0,
@@ -87,13 +93,13 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
         fontSize: '14px',
       }}>
         <thead>
-          <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+          <tr style={{ borderBottom: '2px solid var(--sh-line)' }}>
             {headers.map((h, i) => (
               <th key={i} style={{
                 textAlign: 'left',
                 padding: '12px 16px',
                 fontWeight: 600,
-                color: '#475569',
+                color: 'var(--sh-text)',
                 whiteSpace: 'nowrap',
               }}>
                 {h}
@@ -103,11 +109,11 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+            <tr key={i} style={{ borderBottom: '1px solid var(--sh-line)' }}>
               {row.map((cell, j) => (
                 <td key={j} style={{
                   padding: '12px 16px',
-                  color: '#334155',
+                  color: 'var(--sh-text)',
                   wordBreak: 'break-word',
                 }}>
                   {cell}
@@ -178,10 +184,10 @@ export function ApiDocsPage() {
         <div className="apidocs__content">
           {/* Overview */}
           <div id="overview" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               概述
             </h2>
-            <CodeBlock>{`用户通过 Google SSO 登录
+            <CodeBlock language="text">{`用户通过 Google SSO 登录
   → 插件提交 Case
   → 后端解析上下文
   → diagnosis_run.mode=DIAGNOSE
@@ -189,7 +195,7 @@ export function ApiDocsPage() {
   → 用户选择一个 Finding 并点击 Auto Fix
   → diagnosis_run.mode=IMPLEMENT_CHANGE
   → Devin 修改该 Finding 对应的单一仓库并创建 PR`}</CodeBlock>
-            <p style={{ color: '#475569', lineHeight: 1.7 }}>
+            <p style={{ color: 'var(--sh-text)', lineHeight: 1.7 }}>
               核心约束：Case 首次提交统一进入诊断；一个 Case 可包含 0..N 个 Finding；
               一个 Finding 绑定一个主要 Application 和 Repository，是最小 Auto Fix 单元。
             </p>
@@ -197,7 +203,7 @@ export function ApiDocsPage() {
 
           {/* Auth */}
           <div id="auth" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               地址与鉴权
             </h2>
             <Table
@@ -223,28 +229,28 @@ export function ApiDocsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginTop: '24px', marginBottom: '12px' }}>
               认证方式
             </h3>
-            <p style={{ color: '#475569', marginBottom: '12px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '12px' }}>
               除公开统计接口外，所有业务接口需要 Google SSO 登录后使用 Bearer Token：
             </p>
-            <CodeBlock>{`Authorization: Bearer <access-token>`}</CodeBlock>
+            <CodeBlock language="bash">{`Authorization: Bearer <access-token>`}</CodeBlock>
           </div>
 
           {/* Conventions */}
           <div id="conventions" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               通用约定
             </h2>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>时间与命名</h3>
-            <ul style={{ color: '#475569', lineHeight: 1.8, paddingLeft: '20px' }}>
+            <ul style={{ color: 'var(--sh-text)', lineHeight: 1.8, paddingLeft: '20px' }}>
               <li>时间使用 ISO-8601 UTC，例如 <code>2026-09-06T02:00:00Z</code></li>
               <li>JSON 字段使用 <code>camelCase</code></li>
               <li>Case 对外使用 <code>caseKey</code>，数据库 UUID 不作为主要路由标识</li>
             </ul>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginTop: '24px', marginBottom: '12px' }}>幂等</h3>
-            <p style={{ color: '#475569', marginBottom: '12px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '12px' }}>
               提交 Case 和触发 Auto Fix 时应传递幂等键：
             </p>
-            <CodeBlock>{`Idempotency-Key: <同一业务操作唯一值，最大 200 字符>`}</CodeBlock>
+            <CodeBlock language="bash">{`Idempotency-Key: <同一业务操作唯一值，最大 200 字符>`}</CodeBlock>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginTop: '24px', marginBottom: '12px' }}>
               错误结构
             </h3>
@@ -273,16 +279,16 @@ export function ApiDocsPage() {
 
           {/* API 1 */}
           <div id="api-1" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               接口一：插件提交 Case
             </h2>
             <Endpoint method="POST" path="/api/v1/plugin/issues" status="已实现" />
-            <p style={{ color: '#475569', marginBottom: '16px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '16px' }}>
               接收插件原生 Payload。后端负责校验请求、保留原始中文文本、转换 Context Event、
               创建 Case 并异步启动 DIAGNOSE。
             </p>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>请求 Headers</h3>
-            <CodeBlock>{`Authorization: Bearer <access-token>
+            <CodeBlock language="bash">{`Authorization: Bearer <access-token>
 Content-Type: application/json
 Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginTop: '24px', marginBottom: '12px' }}>
@@ -318,11 +324,11 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
 
           {/* API 2 */}
           <div id="api-2" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               接口二：官网统计接口
             </h2>
             <Endpoint method="GET" path="/api/v1/public/statistics" status="待实现" />
-            <p style={{ color: '#475569', marginBottom: '16px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '16px' }}>
               POC 的真实故障接口，无需鉴权。用于演示插件采集 → 后端诊断 → Auto Fix 的完整流程。
             </p>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>
@@ -346,7 +352,7 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
 
           {/* API 3 */}
           <div id="api-3" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               接口三：当前用户 Case 列表
             </h2>
             <Endpoint method="GET" path="/api/v1/cases" status="待实现" />
@@ -386,11 +392,11 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
 
           {/* API 4 */}
           <div id="api-4" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               接口四：Case 详情
             </h2>
             <Endpoint method="GET" path="/api/v1/cases/{caseKey}" status="部分实现" />
-            <p style={{ color: '#475569', marginBottom: '16px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '16px' }}>
               返回 Case 基本信息、最新诊断状态和当前诊断版本的 Findings。
             </p>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>
@@ -427,11 +433,11 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
 
           {/* API 5 */}
           <div id="api-5" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: 'var(--sh-ink)' }}>
               接口五：触发 Auto Fix
             </h2>
             <Endpoint method="POST" path="/api/v1/cases/{caseKey}/findings/{findingId}/auto-fix" status="待实现" />
-            <p style={{ color: '#475569', marginBottom: '16px' }}>
+            <p style={{ color: 'var(--sh-text)', marginBottom: '16px' }}>
               用户点击 Auto Fix 时调用。针对一个 Finding 创建新的 Fix Attempt 和 IMPLEMENT_CHANGE Run。
             </p>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>请求 Body</h3>
@@ -455,34 +461,6 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
   "mode": "IMPLEMENT_CHANGE",
   "status": "QUEUED"
 }`}</CodeBlock>
-          </div>
-
-          {/* Workflow */}
-          <div id="workflow" style={{ marginBottom: '56px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px', color: '#1e293b' }}>
-              推荐联调顺序
-            </h2>
-            <CodeBlock>{`1. GET /api/v1/public/statistics
-   → 收到真实 500
-
-2. POST /api/v1/plugin/issues
-   → 提交浏览器采集结果
-   → 保存 caseKey
-
-3. GET /api/v1/cases?page=0&size=20
-   → 在"我的 Case"列表看到新 Case
-
-4. GET /api/v1/cases/{caseKey}
-   → 诊断期间按 pollAfterSeconds 轮询
-   → status=DIAGNOSED 后展示 0..N Findings
-
-5. POST /api/v1/cases/{caseKey}/findings/{findingId}/auto-fix
-   → 用户明确选择一个 Finding
-   → 保存 fixAttemptId/runId
-
-6. GET /api/v1/cases/{caseKey}
-   → 轮询 finding.latestFix.status
-   → PR_CREATED 后展示 pullRequestUrl`}</CodeBlock>
           </div>
         </div>
       </div>

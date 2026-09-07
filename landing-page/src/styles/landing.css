@@ -35,14 +35,17 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
+/* 每项统一按四个汉字占位，短标签不塌缩，Tab 间距才能对齐 */
 .lp-nav__tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: calc(4em + 24px);
   height: 38px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: 999px;
   font-size: 14.5px;
   font-weight: 500;
@@ -925,9 +928,9 @@
   top: 100px;
   min-width: 200px;
   padding: 20px;
-  background: #f8fafc;
+  background: rgba(255, 255, 255, 0.75);
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--sh-line);
   flex-shrink: 0;
 }
 
@@ -937,7 +940,7 @@
   margin-bottom: 4px;
   border-radius: 6px;
   font-size: 14px;
-  color: #475569;
+  color: var(--sh-text);
   text-decoration: none;
   font-weight: 400;
   transition: all 0.15s;
@@ -945,8 +948,8 @@
 }
 
 .apidocs__sidebar a.active {
-  color: #4a36e3;
-  background: #ede9fe;
+  color: var(--sh-accent);
+  background: var(--sh-accent-soft);
   font-weight: 500;
 }
 
@@ -982,7 +985,7 @@
     z-index: 40;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--sh-line);
     padding: 8px 0;
     margin-bottom: 24px;
   }
@@ -1005,16 +1008,16 @@
     padding: 6px 14px;
     border-radius: 20px;
     font-size: 13px;
-    color: #475569;
+    color: var(--sh-text);
     text-decoration: none;
-    background: #f1f5f9;
+    background: var(--sh-sunken);
     white-space: nowrap;
     transition: all 0.15s;
   }
 
   .apidocs__mobile-nav a.active {
     color: #fff;
-    background: #4a36e3;
+    background: var(--sh-accent);
   }
 
   .apidocs__content {
