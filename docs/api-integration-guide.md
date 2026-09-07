@@ -9,7 +9,7 @@
 ## 1. 主流程与设计约束
 
 ```text
-用户通过 Google SSO 登录
+POC 使用项目 Ingest Token（正式环境先 Google SSO 登录）
   → 插件提交 Case
   → 后端解析上下文
   → diagnosis_run.mode=DIAGNOSE
@@ -41,26 +41,25 @@
 
 | # | 方法与路径 | 用途 | 状态 |
 |---:|---|---|---|
-| 1 | `POST /api/v1/plugin/issues` | 插件提交 Case | Payload 解析和统一诊断已实现；Bearer 登录待调整 |
-| 2 | `GET /api/v1/public/statistics` | 官网统计接口及固定 500 故障 | 待实现 |
-| 3 | `GET /api/v1/cases` | 当前用户的分页 Case 列表 | 待实现 |
-| 4 | `GET /api/v1/cases/{caseKey}` | Case 详情及 Findings | 基础详情已实现；聚合字段待扩展 |
-| 5 | `POST /api/v1/cases/{caseKey}/findings/{findingId}/auto-fix` | 人工触发单个 Finding 的修复 PR | 待实现 |
+| 1 | `POST /api/v1/plugin/issues` | 插件提交 Case | 已实现（POC 使用 Ingest Token） |
+| 2 | `GET /api/v1/public/statistics` | 官网统计接口及固定 500 故障 | 已实现 |
+| 3 | `GET /api/v1/cases` | 分页 Case 列表 | 已实现（POC 按 Token 的 Project 隔离） |
+| 4 | `GET /api/v1/cases/{caseKey}` | Case 详情及 Findings | 已实现 |
+| 5 | `POST /api/v1/cases/{caseKey}/findings/{findingId}/auto-fix` | 人工触发单个 Finding 的修复 PR | 已实现 |
 
-除公开统计接口外，所有业务接口都必须先完成 Google SSO 登录，并使用当前用户的 Bearer Token：
+为了先完成当天 POC 部署，除公开统计接口外，当前接口暂时继续使用项目级 Ingest Token：
 
 ```http
-Authorization: Bearer <access-token>
+Authorization: Ingest local-demo-token
 ```
 
-用户归属规则：
+最终用户归属规则保持不变，但放到后续 SSO 阶段实施：
 
 - `createdByUserId` 由后端从可信认证身份解析，客户端不能在请求 Body 中指定。
-- 插件未登录时不允许提交 Case，返回 `401 Unauthorized`。
-- 后端创建 Case 时必须写入 `diagnosis_case.created_by_user_id`，该字段不允许为空。
-- Project/Application 范围由请求上下文和服务端映射确定，并校验当前用户是否具有对应 Project 权限。
-- Ingest Token 可以保留为内部接入凭证，但不能代替用户身份，也不能单独调用面向用户的接口。
-- 当前代码尚未实现 `created_by_user_id` 和 Bearer SSO，因此在完成相关改造前，本文定义的用户主流程还不能完整联调。
+- 正式环境中插件未登录时不允许提交 Case。
+- 正式环境创建 Case 时写入 `diagnosis_case.created_by_user_id`。
+- POC 阶段暂不新增 `created_by_user_id`，Case 列表按照 Ingest Token 所属 Project 隔离。
+- POC Token 只用于验证主链路，不能被解释为最终用户权限模型。
 
 ## 3. 通用约定
 
@@ -128,7 +127,7 @@ Idempotency-Key: <同一业务操作唯一值，最大 200 字符>
 请求 Headers：
 
 ```http
-Authorization: Bearer <access-token>
+Authorization: Ingest local-demo-token
 Content-Type: application/json
 Idempotency-Key: iss-statistics-500-001
 ```
@@ -305,20 +304,22 @@ curl -i http://localhost:8080/api/v1/public/statistics
 {
   "totalCases": 0,
   "diagnosedCases": 0,
+  "fixAttempts": 0,
   "pullRequestsCreated": 0,
-  "diagnosisSuccessRate": 0.0
+  "diagnosisSuccessRate": 0.0,
+  "autoFixSuccessRate": 0.0
 }
 ```
 
-POC 的预置缺陷是统计总数为 `0` 时计算成功率触发除零错误。该错误必须来自真实后端代码，不应由 Mock、网关规则或随机失败生成。修复后，`totalCases=0` 时 `diagnosisSuccessRate` 应返回 `0.0`。
+POC 的预置缺陷是尚无 Auto Fix Attempt 时计算 PR 成功率触发除零错误。该错误必须来自真实后端代码，不应由 Mock、网关规则或随机失败生成。它在已有 Case、但还没有执行过 Auto Fix 的联调数据库中仍可稳定复现；修复后 `fixAttempts=0` 时 `autoFixSuccessRate` 应返回 `0.0`。
 
 ---
 
-## 6. 接口三：当前用户的分页 Case 列表
+## 6. 接口三：分页 Case 列表
 
 ### `GET /api/v1/cases`
 
-目标用途：管理端查询当前登录用户创建的 Case。该接口尚未实现，以下为联调契约。
+目标用途：管理端分页查询 Case。POC 阶段返回当前 Ingest Token 所属 Project 的 Case；接入 SSO 后收紧为当前用户及其角色授权范围。
 
 Query 参数：
 
@@ -334,7 +335,7 @@ Query 参数：
 
 ```bash
 curl -sS 'http://localhost:8080/api/v1/cases?page=0&size=20&status=DIAGNOSED' \
-  -H 'Authorization: Bearer <access-token>'
+  -H 'Authorization: Ingest local-demo-token'
 ```
 
 成功响应：`200 OK`
@@ -362,21 +363,20 @@ curl -sS 'http://localhost:8080/api/v1/cases?page=0&size=20&status=DIAGNOSED' \
 }
 ```
 
-权限规则：
+POC 权限规则：
 
-- 普通用户只能看到 `created_by_user_id=当前用户` 的 Case。
-- Group Admin 后续可以看到 Group 下有权限 Project 的 Case。
-- Project Maintainer 后续可以看到指定 Project 的 Case。
+- 只能看到 Token 所属 Organization、Group、Project 的 Case。
+- `projectId` 只能等于 Token 所属 Project；传入其他值返回空分页。
 - 无权访问的数据不应计入 `totalElements`。
 - 列表不返回 `rawPayload`、完整 Evidence、截图二进制或 Devin 原始响应。
 
 性能要求：
 
 - 查询必须在数据库完成过滤和分页，禁止先加载全部 Case 再在 Java 内分页。
-- 需要为用户维度增加类似 `(created_by_user_id, created_at DESC, id DESC)` 的索引。
+- 当前复用 `(project_id, created_at DESC)` 索引；SSO 阶段再增加用户维度索引。
 - `findingCount` 应使用聚合查询或预聚合，避免逐条 Case 触发 N+1 查询。
 
-该接口不提供 Ingest Token 降级模式；没有有效用户身份时返回 `401`。
+SSO 阶段再改成 `created_by_user_id=当前用户`；`userId` 始终不能由普通客户端传入。
 
 ---
 
@@ -384,7 +384,7 @@ curl -sS 'http://localhost:8080/api/v1/cases?page=0&size=20&status=DIAGNOSED' \
 
 ### `GET /api/v1/cases/{caseKey}`
 
-返回 Case 基本信息、最新诊断状态和当前诊断版本的 Findings。当前接口已存在，但现有实现尚未聚合 `description`、`latestDiagnosis` 和 `findings`，需要按本契约扩展。
+返回 Case 基本信息、最新诊断状态和当前诊断版本的 Findings。当前实现已聚合 `description`、`latestDiagnosis`、`findings` 以及每个 Finding 的 `latestFix`。
 
 Path 参数：
 
@@ -394,7 +394,7 @@ Path 参数：
 
 ```bash
 curl -sS http://localhost:8080/api/v1/cases/SH-20260906-4EB4AD00 \
-  -H 'Authorization: Bearer <access-token>'
+  -H 'Authorization: Ingest local-demo-token'
 ```
 
 成功响应：`200 OK`
@@ -418,7 +418,7 @@ curl -sS http://localhost:8080/api/v1/cases/SH-20260906-4EB4AD00 \
     "mode": "DIAGNOSE",
     "provider": "devin",
     "status": "COMPLETED",
-    "summary": "The statistics endpoint divides by zero when there are no cases.",
+    "summary": "The statistics endpoint divides by zero when there are no Auto Fix attempts.",
     "providerSessionUrl": "https://app.devin.ai/sessions/...",
     "createdAt": "2026-09-06T02:00:02Z",
     "finishedAt": "2026-09-06T02:01:58Z"
@@ -435,8 +435,8 @@ curl -sS http://localhost:8080/api/v1/cases/SH-20260906-4EB4AD00 \
       "method": "getStatistics",
       "lineStart": 31,
       "lineEnd": 31,
-      "rootCause": "The success-rate calculation divides by totalCases without handling zero.",
-      "recommendedFix": "Return a zero success rate when totalCases is zero.",
+      "rootCause": "The Auto Fix success-rate calculation divides by fixAttempts without handling zero.",
+      "recommendedFix": "Return a zero success rate when fixAttempts is zero.",
       "aiConfidence": 0.96,
       "severity": "HIGH",
       "validationStatus": "FILE_LINES_VERIFIED",
@@ -503,7 +503,7 @@ Retry-After: 3
 请求 Headers：
 
 ```http
-Authorization: Bearer <access-token>
+Authorization: Ingest local-demo-token
 Content-Type: application/json
 Idempotency-Key: finding-6a424b8e-fix-001
 ```
@@ -549,7 +549,7 @@ Path 参数：
 
 - Case 至少有一次 `mode=DIAGNOSE,status=COMPLETED` 的 Run。
 - Finding 属于该 Case，并属于当前有效的最新诊断结果。
-- Finding 已绑定且验证过一个主要 Repository 和源码位置。
+- Finding 已绑定一个经过服务端授权的主要 Application/Repository；POC 可关闭 GitHub 文件行号二次校验。
 - 调用者有该 Case 和 Project 的修复权限。
 - 当前 Finding 没有正在运行的 Fix Attempt。
 - POC 阶段同一 Case 内任务串行执行；Case 有其他活动 Job 时返回 `409`。
@@ -568,10 +568,10 @@ approvedAt = 当前时间
 | HTTP | code | 场景 |
 |---:|---|---|
 | `404` | `FINDING_NOT_FOUND` | Finding 不存在、不属于 Case 或调用者无权访问 |
-| `409` | `CASE_NOT_DIAGNOSED` | Case 尚未完成诊断 |
+| `409` | `STALE_FINDING` | Case 尚无成功诊断，或 Finding 不属于当前有效诊断版本 |
 | `409` | `STALE_FINDING` | Finding 不属于当前有效诊断版本 |
-| `409` | `FIX_ALREADY_RUNNING` | 该 Finding 已有活动修复任务 |
 | `409` | `CASE_HAS_ACTIVE_JOB` | POC 串行策略下 Case 还有其他活动 Job |
+| `409` | `CASE_HAS_UNRESOLVED_SESSION` | Case 存在未确认或未清理的 Devin Session |
 | `409` | `FINDING_TARGET_UNVERIFIED` | 仓库或源码目标未验证，禁止修改 |
 
 失败重试：
@@ -610,19 +610,32 @@ approvedAt = 当前时间
    → PR_CREATED 后展示 pullRequestUrl
 ```
 
-## 10. 后端实现差距
+## 10. 后续工作
 
-为使本文 5 个接口完整可联调，后端还需要：
+### Chrome 插件跨域配置
 
-1. 新增官网统计 Controller/Service，并放入可被 Devin 真实定位和修复的固定除零缺陷。
-2. 给 `diagnosis_case` 增加 `created_by_user_id` 及用户时间倒序索引。
-3. 实现当前用户 Case 分页查询，避免 N+1。
-4. 扩展 Case 详情，聚合最新诊断 Findings 和每个 Finding 的 latest Fix Attempt。
-5. 将旧的 Case 级、唯一 `change_request` 调整为 Finding 级的多次 Fix Attempt 数据模型。
-6. 实现 Finding Auto Fix Controller、权限校验、幂等和状态校验。
-7. 实现 Auto Fix 时明确创建 `IMPLEMENT_CHANGE` Run，不再通过 Case 分类字段决定任务模式。
-8. 调整完成状态：单个 Finding 的修复结果不能覆盖 Case 的整体诊断状态。
-9. 接入 Google SSO，并让插件提交、Case 列表、详情和 Auto Fix 全部使用 Bearer 用户身份；禁止仅凭 Ingest Token 创建匿名 Case。
+外网 POC 允许当前 AI Sherlock Chrome Extension Origin：
+
+```dotenv
+SHERLOCK_ALLOWED_ORIGIN_PATTERNS=chrome-extension://ikbbilafgkgcndjaacmlcmpmiofiibii
+```
+
+该值使用 Spring 的 Origin Pattern 配置，仅允许这个插件 Origin。插件还必须在
+`manifest.json` 中声明：
+
+```json
+{
+  "host_permissions": ["https://api.aisherlock.vip/*"]
+}
+```
+
+CORS 不是鉴权，插件仍需按接口约定传递认证 Header。如果插件 ID 发生变化，需要同步修改该
+配置并重新部署后端。
+
+五个接口完成本地和外网 POC 验证后，再实施正式权限模型：
+
+1. 给 `diagnosis_case` 增加 `created_by_user_id` 及用户时间倒序索引。
+2. 接入 Google SSO，并让插件提交、Case 列表、详情和 Auto Fix 切换为 Bearer 用户身份。
+3. 增加 Group Admin、Project Maintainer 和邮件白名单权限校验。
 
 现有 `/api/v1/cases/{caseKey}/runs`、`/events`、`/evidence`、`/artifacts` 等接口继续作为诊断和运维辅助接口，但不是本轮前端主流程的核心依赖。
-1

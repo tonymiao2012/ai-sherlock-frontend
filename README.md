@@ -70,6 +70,28 @@ bun run build         # 构建到 .output/chrome
 bun run zip           # 打包为 zip，可直接上传应用商店
 ```
 
+## Web 前端持续集成
+
+`landing-page` 和 `admin-page` 使用根目录的 pnpm workspace。使用 Node.js 24
+以及 `package.json` 中指定的 pnpm 版本，在根目录执行：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+`.github/workflows/build.yml` 在代码合并或直接推送到 `main` 后自动构建，
+也可在 GitHub Actions 的 **Frontend Build → Run workflow** 手动触发。
+构建包含两个 Web 应用的 TypeScript 检查，产物分别为 `landing-page/dist/`
+和 `admin-page/dist/`，可在运行页面下载，保留 7 天。此流程不部署站点，
+也不构建使用独立 Bun 配置的 `extension`。
+
+CI 默认按官网 `/`、中台 `/admin/`、API `/api/v1` 构建。在仓库
+**Settings → Secrets and variables → Actions → Variables** 可配置
+`VITE_API_BASE`、`VITE_GOOGLE_CLIENT_ID`、`VITE_DOCS_URL` 和
+`VITE_CHROME_STORE_URL`。这些值会写入浏览器端产物，不能用于存放密钥。
+Google Client ID 未配置时仍可构建，但 Google 登录不可用。
+
 ## 设计文档
 
 `docs/` 目录下的 HTML 文档，浏览器直接打开：
