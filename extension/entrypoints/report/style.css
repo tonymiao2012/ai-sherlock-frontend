@@ -2,6 +2,7 @@
 
 .report-page {
   max-width: 1100px;
+  min-height: 50vh;
   margin: 0 auto;
   padding: 16px 20px 32px;
 }

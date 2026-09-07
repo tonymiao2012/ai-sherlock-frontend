@@ -13,8 +13,9 @@ export default defineConfig({
     description:
       'Report issues with annotated screenshots, recording and automatic Network / Console / error-stack evidence',
     permissions: ['sidePanel', 'activeTab', 'tabs', 'storage'],
-    // captureVisibleTab 需要 host 权限；activeTab 临时授权切页即失效，不稳定
-    host_permissions: ['<all_urls>'],
+    // <all_urls>：captureVisibleTab 截取任意页面必须；activeTab 授权只在点击图标那一刻
+    // 对当前标签页生效，切 tab / 页面跳转后即失效。后端 API 访问也在此声明。
+    host_permissions: ['https://api.aisherlock.vip/*', '<all_urls>'],
     // public/icon/* 由 assets/logo.png 生成：
     //   sips -c 526 526 assets/logo.png --out /tmp/tile.png
     //   for s in 16 32 48 128; do sips -z $s $s /tmp/tile.png --out public/icon/$s.png; done

@@ -1,39 +1,31 @@
-// 数据接收页：展示最近一次提交的问题包，并提供后端接口联调能力
-import React, { useEffect, useMemo, useState } from 'react';
+// 数据接收页：展示最近一次提交的问题包及 Root Cause 分析结果
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Button,
   Card,
   Descriptions,
-  Input,
   Space,
   Table,
   Tabs,
   Tag,
   Typography,
-  message,
 } from 'antd';
-import { loadReport } from '../core/db';
+import { loadCase, loadReport } from '../core/db';
 import { BRAND_LOGO_URL } from './BrandLogo';
 import type { IssuePackage } from '../core/types';
 import ReplayPlayer from './ReplayPlayer';
 
-const ENDPOINT_KEY = 'sherlock-backend-endpoint';
-
 export default function ReportApp() {
   const [report, setReport] = useState<IssuePackage | null>(null);
   const [loading, setLoading] = useState(true);
-  const [endpoint, setEndpoint] = useState(
-    () => localStorage.getItem(ENDPOINT_KEY) ?? ''
-  );
-  const [postResult, setPostResult] = useState('');
-  const [posting, setPosting] = useState(false);
 
   useEffect(() => {
-    loadReport()
+    const params = new URLSearchParams(window.location.search);
+    const caseId = params.get('caseId');
+    const loader = caseId ? loadCase(caseId) : loadReport();
+    loader
       .then((r) => {
         if (r) {
-          // 数据接收页控制台可直接查看/复制 payload
           console.log('[AI Sherlock] issue payload:', r);
           console.log('[AI Sherlock] payload JSON:', JSON.stringify(r, null, 2));
         }
@@ -41,55 +33,6 @@ export default function ReportApp() {
       })
       .finally(() => setLoading(false));
   }, []);
-
-  const rawJson = useMemo(
-    () => (report ? JSON.stringify(report, null, 2) : ''),
-    [report]
-  );
-
-  const copyJson = async () => {
-    try {
-      await navigator.clipboard.writeText(rawJson);
-      message.success('Issue JSON copied');
-    } catch {
-      message.error('Copy failed — select the text manually');
-    }
-  };
-
-  const downloadJson = () => {
-    const blob = new Blob([rawJson], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${report?.issueId ?? 'issue'}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const postToBackend = async () => {
-    if (!endpoint.trim()) {
-      message.warning('Enter the backend endpoint first');
-      return;
-    }
-    localStorage.setItem(ENDPOINT_KEY, endpoint.trim());
-    setPosting(true);
-    setPostResult('');
-    const startedAt = Date.now();
-    try {
-      const resp = await fetch(endpoint.trim(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: rawJson,
-      });
-      const text = await resp.text();
-      setPostResult(
-        `HTTP ${resp.status} ${resp.statusText} (${Date.now() - startedAt}ms)\n\n${text.slice(0, 5000)}`
-      );
-    } catch (e) {
-      setPostResult(`Request failed: ${String(e)}`);
-    } finally {
-      setPosting(false);
-    }
-  };
 
   if (loading)
     return (
@@ -208,6 +151,15 @@ export default function ReportApp() {
                     )}
                     <Descriptions.Item label="Severity">
                       {report.severity ?? '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Status">
+                      {report.status ? (
+                        <Tag color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? 'green' : 'default'}>
+                          {report.status}
+                        </Tag>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     {report.recordingSeconds != null &&
                       report.recordingSeconds > 0 && (
@@ -388,82 +340,97 @@ export default function ReportApp() {
             children: <ReplayPlayer events={(report.rrwebEvents ?? []) as any} />,
           },
           {
-            key: 'raw',
-            label: 'Raw JSON',
-            children: (
-              <div>
-                <Space style={{ marginBottom: 8 }}>
-                  <Button size="small" onClick={copyJson}>
-                    Copy
-                  </Button>
-                  <Button size="small" onClick={downloadJson}>
-                    Download JSON
-                  </Button>
-                  <span style={{ color: 'var(--sh-muted)', fontSize: 12 }}>
-                    ~ {(rawJson.length / 1024).toFixed(1)} KB
-                  </span>
-                </Space>
-                <pre
-                  style={{
-                    maxHeight: 560,
-                    overflow: 'auto',
-                    background: 'var(--sh-sunken)',
-                    padding: 12,
-                    borderRadius: 4,
-                    fontSize: 12,
-                  }}
-                >
-                  {rawJson}
-                </pre>
-              </div>
-            ),
-          },
-          {
-            key: 'backend',
-            label: 'Backend',
-            children: (
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Alert
-                  type="info"
-                  showIcon
-                  message="POST the current package to any backend endpoint to check the payload (the address stays in localStorage)"
-                />
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder="https://your-backend/api/issues"
-                    value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
-                  />
-                  <Button
-                    type="primary"
-                    loading={posting}
-                    onClick={postToBackend}
+            key: 'root-cause',
+            label: `Root Cause(${report.diagnosis?.findings.length ?? 0})`,
+            children: report.diagnosis ? (
+              <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                {report.diagnosis.findings.map((f) => (
+                  <Card
+                    key={f.id}
+                    size="small"
+                    title={
+                      <Space>
+                        {f.type && <Tag color="blue">{f.type}</Tag>}
+                        {f.severity && (
+                          <Tag
+                            color={
+                              f.severity === 'HIGH'
+                                ? 'red'
+                                : f.severity === 'MEDIUM'
+                                  ? 'orange'
+                                  : 'green'
+                            }
+                          >
+                            {f.severity}
+                          </Tag>
+                        )}
+                        <span>{f.title ?? f.id}</span>
+                      </Space>
+                    }
                   >
-                    Send
-                  </Button>
-                </Space.Compact>
-                {postResult && (
-                  <pre
+                    {f.rootCause && (
+                      <div style={{ marginBottom: f.recommendedFix ? 8 : 0 }}>
+                        <b>Root cause: </b>
+                        {f.rootCause}
+                      </div>
+                    )}
+                    {f.recommendedFix && (
+                      <div>
+                        <b>Recommended fix: </b>
+                        {f.recommendedFix}
+                      </div>
+                    )}
+                    {f.file && (
+                      <div style={{ color: 'var(--sh-muted)', fontSize: 12, marginTop: 6 }}>
+                        {f.repository && `${f.repository} · `}
+                        {f.file}
+                        {f.lineStart != null && `:${f.lineStart}`}
+                      </div>
+                    )}
+                  </Card>
+                ))}
+                {report.diagnosis.caseSummary && (
+                  <div
                     style={{
-                      whiteSpace: 'pre-wrap',
                       background: 'var(--sh-sunken)',
                       padding: 12,
                       borderRadius: 4,
-                      fontSize: 12,
-                      maxHeight: 400,
-                      overflow: 'auto',
+                      fontSize: 13,
+                      lineHeight: 1.9,
                     }}
                   >
-                    {postResult}
-                  </pre>
+                    {splitSentences(report.diagnosis.caseSummary).map((s, i) => (
+                      <div key={i} style={{ wordBreak: 'break-word' }}>
+                        {s}
+                      </div>
+                    ))}
+                  </div>
                 )}
+                {!report.diagnosis.caseSummary &&
+                  report.diagnosis.findings.length === 0 && (
+                    <div style={{ color: 'var(--sh-muted)' }}>
+                      No root cause analysis available yet.
+                    </div>
+                  )}
               </Space>
+            ) : (
+              <div style={{ color: 'var(--sh-muted)' }}>
+                No root cause analysis available yet.
+              </div>
             ),
           },
         ]}
       />
     </div>
   );
+}
+
+/** 按句子边界拆分诊断文本，避免长文挤成一坨 */
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?。！？；;])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function fmtTime(ts: number): string {

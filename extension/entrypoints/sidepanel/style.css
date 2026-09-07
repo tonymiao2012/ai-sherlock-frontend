@@ -185,3 +185,12 @@
   padding: 10px 12px;
   background: var(--sh-surface);
 }
+
+/* antd Spin 包裹层会打断 flex 链，让内容区参与整栏布局 */
+.editor-layout > .ant-spin-nested-loading,
+.editor-layout > .ant-spin-nested-loading > .ant-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

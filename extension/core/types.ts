@@ -59,6 +59,28 @@ export interface EvidenceEvent {
   entry: NetworkEntry | ConsoleEntry | ErrorEntry;
 }
 
+/** Root Cause 分析结果（由后端诊断服务返回） */
+export interface Finding {
+  id: string;
+  type?: string;
+  title?: string;
+  application?: string;
+  repository?: string;
+  file?: string;
+  lineStart?: number;
+  lineEnd?: number;
+  rootCause?: string;
+  recommendedFix?: string;
+  aiConfidence?: number;
+  severity?: string;
+}
+
+export interface Diagnosis {
+  complete: boolean;
+  findings: Finding[];
+  caseSummary: string;
+}
+
 /** 截图内容块（批注后图像 + 对该图的描述） */
 export interface ScreenshotItem {
   dataUrl: string;
@@ -101,11 +123,13 @@ export interface EvidenceDump {
 export interface IssuePackage {
   issueId: string;
   sessionId: string;
+  caseKey?: string;
   title: string;
   description: string;
   steps?: string;
   expectedResult?: string;
   severity?: string;
+  status?: string;
   /** 截图（含批注后的 dataURL 与描述） */
   screenshots: ScreenshotItem[];
   pageContext: PageContext;
@@ -118,6 +142,13 @@ export interface IssuePackage {
   /** rrweb 录制事件，可回放 */
   rrwebEvents?: unknown[];
   recordingSeconds?: number;
+  /** 后端 Root Cause 诊断结果 */
+  diagnosis?: Diagnosis;
+  /** 应用与环境，帮助后端做 Endpoint → Application 映射 */
+  scope?: {
+    sourceApplication?: string;
+    environment?: string;
+  };
   meta: {
     pluginVersion: string;
     assembledAt: string;

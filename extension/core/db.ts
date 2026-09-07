@@ -1,11 +1,12 @@
-// IndexedDB 极简 Promise 封装：background 写入问题包，报告页读取；
-// 另存侧边栏未提交草稿
+// IndexedDB Promise 封装：background 写入问题包，报告页读取；
+// 另存侧边栏未提交草稿；支持多 Case 存储
 import type { IssuePackage, SidebarDraft } from './types';
 
 const DB_NAME = 'ai-sherlock';
 const STORE = 'reports';
 export const REPORT_KEY = 'latest-report';
 export const DRAFT_KEY = 'sidebar-draft';
+const CASES_PREFIX = 'case:';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -39,6 +40,45 @@ export async function loadDraft(): Promise<SidebarDraft | null> {
 
 export async function clearDraft(): Promise<void> {
   return deleteValue(DRAFT_KEY);
+}
+
+/** 保存 Case（以 issueId 为 key） */
+export async function saveCase(pkg: IssuePackage): Promise<void> {
+  return putValue(CASES_PREFIX + pkg.issueId, pkg);
+}
+
+/** 加载所有 Case 列表（按提交时间倒序） */
+export async function loadCases(): Promise<IssuePackage[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).openCursor();
+    const cases: IssuePackage[] = [];
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        const key = cursor.key as string;
+        if (key.startsWith(CASES_PREFIX)) {
+          cases.push(cursor.value as IssuePackage);
+        }
+        cursor.continue();
+      } else {
+        cases.sort(
+          (a, b) =>
+            new Date(b.meta.assembledAt).getTime() -
+            new Date(a.meta.assembledAt).getTime()
+        );
+        resolve(cases);
+      }
+    };
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/** 加载单个 Case */
+export async function loadCase(issueId: string): Promise<IssuePackage | null> {
+  return getValue<IssuePackage>(CASES_PREFIX + issueId);
 }
 
 function putValue<T>(key: string, value: T): Promise<void> {

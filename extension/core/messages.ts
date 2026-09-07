@@ -35,7 +35,9 @@ export type RuntimeMessage =
   | { type: 'start-recording' }
   | { type: 'stop-recording' }
   | { type: 'evidence-event'; event: EvidenceEvent }
-  | { type: 'get-report' };
+  | { type: 'get-report' }
+  | { type: 'fetch-cases' }
+  | { type: 'fetch-case-detail'; caseKey: string };
 
 /** content -> 侧边栏：页内批注后的成图 */
 export type CaptureResult =
