@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Sherlock — Backend Technical Design V1.2</title>
+<title>AI Sherlock — Backend Technical Design V1.3</title>
 <style>
 :root{
   --bg:#f5f7fb; --paper:#ffffff; --ink:#15213b; --muted:#667085;
@@ -96,19 +96,54 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
   <div class="eyebrow">AI SHERLOCK · BACKEND TECHNICAL DESIGN</div>
   <h1>AI 诊断编排平台后端技术设计</h1>
   <p class="subtitle">
-    面向企业级 Web / Java 微服务场景，将一次问题现场从 Context 采集，经过日志与源码证据补全、AI 诊断、Finding 拆分，
-    最终形成一个或多个可执行的 Jira Ticket。架构以 Spring Boot + PostgreSQL 为核心，并为 Group、权限分层、统计分析和未来微服务化预留边界。
+    实现对齐版：浏览器插件提交问题现场，后端异步构建诊断上下文并调用 Devin，输出可验证的 Finding；
+    用户可针对单个 Finding 人工触发 Auto Fix，由 Devin 修改目标仓库并创建 Pull Request。
   </p>
   <div class="meta">
-    <span class="pill">Spring Boot</span><span class="pill">PostgreSQL</span><span class="pill">HTTPS / REST</span>
-    <span class="pill">Elastic / Kibana</span><span class="pill">Bitbucket</span><span class="pill">Devin API</span><span class="pill">Jira API</span>
+    <span class="pill">V1.3 · 2026-09-06</span><span class="pill">Java 21 / Spring Boot</span>
+    <span class="pill">PostgreSQL 17 / Flyway</span><span class="pill">GitHub + Devin v3</span>
+    <span class="pill">Docker Compose / GitHub Actions</span>
   </div>
 </header>
+
+<section id="baseline" class="section">
+  <div class="section-title"><div class="num">00</div><div><h2>当前实现基线与文档口径</h2><p class="section-intro">本节描述 2026-09-06 已落地的 POC，是联调、排障和继续开发时的权威口径；文档中 Jira、Elastic、Google SSO、对象存储和 OpenShift 相关内容均属于后续演进目标。</p></div></div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h3>当前已实现</h3>
+      <ul>
+        <li>浏览器插件通过 <code>POST /api/v1/plugin/issues</code> 提交现场，返回 <code>202 + caseKey</code>。</li>
+        <li>PostgreSQL Job Queue 异步解析 Context、构建 Context Snapshot、创建和轮询 Devin v3 Session。</li>
+        <li><code>diagnosis_run.mode</code> 使用 <code>DIAGNOSE</code> / <code>IMPLEMENT_CHANGE</code> 区分分析与改代码。</li>
+        <li>Devin Structured Output 经后端校验后写入 Finding；允许一个 Case 产生 0..N Finding。</li>
+        <li>用户对单个 Finding 调用 Auto Fix；一次 Finding 可多次尝试，每次尝试独立记录并可创建 PR。</li>
+        <li>截图和 Replay 以 <code>case_artifact</code> 保存；POC 存数据库，模型已预留对象存储。</li>
+        <li>Docker Compose 部署 Spring Boot + PostgreSQL；GitHub Actions 推送 main 后自动构建、重启和健康检查。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>当前边界</h3>
+      <ul>
+        <li>外网 POC 使用一个项目级 <code>INGEST_TOKEN</code>；它不是用户登录 Token。</li>
+        <li>Google SSO、<code>created_by_user_id</code> 和“当前用户的 Case 列表”尚未强制启用。</li>
+        <li>Elastic 日志补全未接入，Context 中明确记录 <code>ELASTIC_NOT_CONFIGURED</code>。</li>
+        <li>源码 Provider 当前为 GitHub；Bitbucket 作为企业内网后续适配器。</li>
+        <li>Jira 草稿/创建暂不进入 POC 主流程；当前交付终点是按 Finding 创建 Pull Request。</li>
+        <li>旧的 Case 级 Change Request 审批 API 仅兼容保留，不再作为新主流程。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight"><b>当前主线：</b> <code>Plugin Issue → Diagnosis Case → Context Event / Artifact → DIAGNOSE Run → Finding[] → 用户触发 Auto Fix → IMPLEMENT_CHANGE Run → Pull Request</code></div>
+  <div class="note"><b>关键约束：</b>Finding 是 Sherlock 的领域对象，不是 Devin 的固定产品概念。一个 Finding 是一个独立、可审查、只绑定一个主要仓库的修复单元；跨仓库故障拆成多个 Finding，其他仓库只作为上下文或证据。</div>
+</section>
 
 
 <section class="toc section">
   <h3 style="margin:0">目录</h3>
   <ol>
+    <li><a href="#baseline">当前实现基线</a></li>
     <li><a href="#goals">目标与设计原则</a></li>
     <li><a href="#domain">核心领域模型</a></li>
     <li><a href="#flow">端到端主流程</a></li>
@@ -118,9 +153,9 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
     <li><a href="#db">数据库模型与表关系</a></li>
     <li><a href="#evidence">Evidence 补全机制</a></li>
     <li><a href="#elastic">Elastic / Kibana 日志查询</a></li>
-    <li><a href="#source">Bitbucket / 源码定位</a></li>
+    <li><a href="#source">Application / Repository 映射</a></li>
     <li><a href="#ai">AI Diagnosis Orchestrator</a></li>
-    <li><a href="#finding">Finding 与多 Jira 模型</a></li>
+    <li><a href="#finding">Finding 与 Auto Fix 模型</a></li>
     <li><a href="#jira">Jira 集成</a></li>
     <li><a href="#api">REST API 设计</a></li>
     <li><a href="#state">状态机与异步任务</a></li>
@@ -143,14 +178,14 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
         <li>解析并标准化 Network、Console、Error、Page、WebSocket、Business Event 等不同类型数据。</li>
         <li>通过服务映射、日志系统、源码仓库补充“运行时证据”。</li>
         <li>将高质量、可验证、范围已收窄的 Evidence 交给 AI，而不是把原始数据全部塞给模型。</li>
-        <li>一次 Case 允许识别多个 Finding，并按责任域创建多个 Jira。</li>
+        <li>一次 Case 允许识别 0..N 个 Finding，并按 Finding 人工触发独立 Auto Fix 与 PR。</li>
         <li>预留 Organization / Group / Application / Capability / Analytics 维度。</li>
       </ul>
     </div>
     <div class="card">
       <h3>五条架构原则</h3>
       <ol>
-        <li><b>Case 是聚合根：</b>所有现场、证据、诊断、Finding 和 Jira 都以 Case 关联。</li>
+        <li><b>Case 是聚合根：</b>所有现场、附件、证据、Run、Finding 和 Fix Attempt 都以 Case 关联。</li>
         <li><b>Context ≠ Evidence：</b>Context 来自现场；Evidence 是后端主动补全得到的外部证据。</li>
         <li><b>Finding ≠ Case：</b>一次 Case 可拆成多个独立前端/后端/集成问题。</li>
         <li><b>Deterministic first：</b>能通过 URL、traceId、stacktrace、repo mapping 确定的事情不交给 AI 猜。</li>
@@ -158,7 +193,7 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       </ol>
     </div>
   </div>
-  <div class="highlight"><b>系统主线：</b> <code>Group → Diagnosis Case → Context → Evidence → Diagnosis Run → Findings → Jira Tickets</code></div>
+  <div class="highlight"><b>系统主线：</b> <code>Project → Diagnosis Case → Context / Artifact → Diagnosis Run → Findings → Finding Fix Attempt → Pull Request</code></div>
 </section>
 
 <section id="domain" class="section">
@@ -183,8 +218,8 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <text x="163" y="305" text-anchor="middle" font-size="18" font-weight="700" fill="#176b55">Application</text>
       <text x="163" y="330" text-anchor="middle" font-size="12" fill="#4d7b6f">Frontend / Backend / Gateway</text>
       <rect x="38" y="390" width="250" height="74" rx="16" fill="#fff8e8" stroke="#edc86a" filter="url(#s)"/>
-      <text x="163" y="420" text-anchor="middle" font-size="18" font-weight="700" fill="#8a5a00">Service Registry</text>
-      <text x="163" y="445" text-anchor="middle" font-size="12" fill="#8a6c30">URL / Repo / Log / Jira Mapping</text>
+      <text x="163" y="420" text-anchor="middle" font-size="18" font-weight="700" fill="#8a5a00">App Mapping</text>
+      <text x="163" y="445" text-anchor="middle" font-size="12" fill="#8a6c30">Endpoint / Repository</text>
 
       <!-- diagnosis chain -->
       <rect x="390" y="70" width="310" height="84" rx="18" fill="#4f46e5" stroke="#3e35c7" filter="url(#s)"/>
@@ -208,8 +243,8 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <text x="910" y="417" text-anchor="middle" font-size="12" fill="#4f7c70">独立责任域问题</text>
 
       <rect x="805" y="500" width="210" height="70" rx="16" fill="#fff4e5" stroke="#efc26d" filter="url(#s)"/>
-      <text x="910" y="530" text-anchor="middle" font-size="17" font-weight="700" fill="#8a5a00">Jira Ticket 0..N</text>
-      <text x="910" y="553" text-anchor="middle" font-size="12" fill="#8b7447">按 Finding 创建</text>
+      <text x="910" y="530" text-anchor="middle" font-size="17" font-weight="700" fill="#8a5a00">Fix Attempt 0..N</text>
+      <text x="910" y="553" text-anchor="middle" font-size="12" fill="#8b7447">按 Finding 人工触发</text>
 
       <!-- arrows -->
       <path d="M163 119 L163 160" stroke="#8190aa" stroke-width="2" marker-end="url(#arrow)"/>
@@ -234,8 +269,10 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <tr><td><b>Context Event</b></td><td>页面现场直接采集的原始事实</td><td>随 Case 创建</td><td>N:1 Case</td></tr>
       <tr><td><b>Evidence</b></td><td>后端主动补全的日志、源码、映射等证据</td><td>Enrichment 阶段产生</td><td>N:1 Case</td></tr>
       <tr><td><b>Diagnosis Run</b></td><td>一次 AI 分析执行</td><td>可重跑，可换 Provider</td><td>1:N Finding</td></tr>
-      <tr><td><b>Finding</b></td><td>AI 判断出的独立问题/根因候选</td><td>由 Run 产生</td><td>N:1 Case，1:N Jira</td></tr>
-      <tr><td><b>Jira Ticket</b></td><td>最终研发执行载体</td><td>按 Finding 创建</td><td>N:1 Finding</td></tr>
+      <tr><td><b>Finding</b></td><td>经过后端校验的独立问题与修复单元</td><td>由 DIAGNOSE Run 产生</td><td>N:1 Case，只绑定一个主要仓库</td></tr>
+      <tr><td><b>Fix Attempt</b></td><td>用户对某个 Finding 发起的一次修复尝试</td><td>由 IMPLEMENT_CHANGE Run 驱动</td><td>N:1 Finding，1:1 Run</td></tr>
+      <tr><td><b>Pull Request</b></td><td>当前研发交付载体</td><td>由成功的 Fix Attempt 产生</td><td>0..1 / Fix Attempt</td></tr>
+      <tr><td><b>Jira Ticket</b></td><td>未来需求/缺陷管理适配器</td><td>POC 暂不启用</td><td>未来按 Finding 关联</td></tr>
     </tbody>
   </table>
 </section>
@@ -250,31 +287,31 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <rect width="1220" height="690" rx="18" fill="#fbfcff"/>
       <g font-size="12" fill="#667085" text-anchor="middle">
         <text x="90" y="42">Client</text><text x="260" y="42">Case API</text><text x="450" y="42">Parser</text>
-        <text x="640" y="42">Evidence Engine</text><text x="830" y="42">Devin</text><text x="1030" y="42">Jira</text>
+        <text x="640" y="42">Evidence Engine</text><text x="830" y="42">Devin</text><text x="1030" y="42">Auto Fix</text>
       </g>
       <g stroke="#cbd3e1" stroke-dasharray="5 5">
         <line x1="90" y1="58" x2="90" y2="650"/><line x1="260" y1="58" x2="260" y2="650"/><line x1="450" y1="58" x2="450" y2="650"/>
         <line x1="640" y1="58" x2="640" y2="650"/><line x1="830" y1="58" x2="830" y2="650"/><line x1="1030" y1="58" x2="1030" y2="650"/>
       </g>
       <g font-size="13" fill="#22314f">
-        <path d="M90 100 L250 100" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="170" y="90" text-anchor="middle">POST /cases + Context</text>
+        <path d="M90 100 L250 100" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="170" y="90" text-anchor="middle">POST /plugin/issues</text>
         <path d="M260 145 L440 145" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="350" y="135" text-anchor="middle">Parse & Normalize</text>
         <path d="M450 190 L270 190" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="360" y="180" text-anchor="middle">ContextEvent[]</text>
         <path d="M260 235 L630 235" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="445" y="225" text-anchor="middle">Enrich evidence for suspicious context</text>
         <rect x="550" y="255" width="180" height="92" rx="13" fill="#eef4ff" stroke="#acc5ff"/>
         <text x="640" y="282" text-anchor="middle" font-weight="700">Evidence Resolution</text>
-        <text x="640" y="305" text-anchor="middle" font-size="11">Service Mapping</text><text x="640" y="323" text-anchor="middle" font-size="11">Elastic Logs + Bitbucket Source</text>
+        <text x="640" y="305" text-anchor="middle" font-size="11">Endpoint / Repository Mapping</text><text x="640" y="323" text-anchor="middle" font-size="11">GitHub Source + Artifact Evidence</text>
         <path d="M640 370 L820 370" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="730" y="360" text-anchor="middle">Structured Diagnosis Context</text>
         <path d="M830 420 L650 420" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="740" y="410" text-anchor="middle">Structured Findings</text>
         <path d="M640 465 L270 465" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="455" y="455" text-anchor="middle">Persist Run + Finding[]</text>
-        <path d="M260 510 L1020 510" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="640" y="500" text-anchor="middle">Create Jira per eligible Finding</text>
-        <path d="M1030 560 L270 560" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="650" y="550" text-anchor="middle">Jira key(s)</text>
-        <path d="M260 610 L100 610" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="180" y="600" text-anchor="middle">Case COMPLETED</text>
+        <path d="M260 510 L1020 510" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="640" y="500" text-anchor="middle">User triggers Auto Fix for one Finding</text>
+        <path d="M1030 560 L270 560" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="650" y="550" text-anchor="middle">Fix status / Pull Request URL</text>
+        <path d="M260 610 L100 610" stroke="#76839d" stroke-width="2" marker-end="url(#a2)"/><text x="180" y="600" text-anchor="middle">Case / Run status</text>
       </g>
     </svg>
   </div>
 
-  <div class="success"><b>关键语义：</b>提交阶段只负责“可靠接收”；诊断阶段异步完成。前端收到 <code>202 Accepted + caseKey</code> 后，不需要等待日志查询、代码拉取、Devin 推理或 Jira 创建。</div>
+  <div class="success"><b>关键语义：</b>提交阶段只负责可靠接收。插件收到 <code>202 Accepted + caseKey</code> 后轮询 Case 详情；诊断和 Auto Fix 都是独立异步 Run，不在提交请求中等待 Devin。</div>
 </section>
 
 <section id="architecture" class="section">
@@ -314,8 +351,8 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
 
         <rect x="95" y="305" width="280" height="135" rx="16" fill="#ffffff" stroke="#cbd3e1"/>
         <text x="235" y="340" text-anchor="middle" font-size="17" font-weight="700">Integration Module</text>
-        <text x="235" y="368" text-anchor="middle" font-size="12" fill="#667085">Elastic Adapter · Bitbucket Adapter</text>
-        <text x="235" y="390" text-anchor="middle" font-size="12" fill="#667085">Devin Adapter · Jira Adapter</text>
+        <text x="235" y="368" text-anchor="middle" font-size="12" fill="#667085">GitHub Adapter · Evidence Collector</text>
+        <text x="235" y="390" text-anchor="middle" font-size="12" fill="#667085">Devin v3 Adapter · Future Jira Adapter</text>
         <text x="235" y="412" text-anchor="middle" font-size="12" fill="#667085">外部 API 防腐层</text>
 
         <rect x="420" y="305" width="280" height="135" rx="16" fill="#ffffff" stroke="#cbd3e1"/>
@@ -340,7 +377,7 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
   <div class="section-title"><div class="num">4.1</div><div><h2>整体诊断编排主流程</h2><p class="section-intro">在模块架构之上，再明确一次真正的运行时主线。Java 后端负责确定性解析、证据补全与工作流控制；AI 只进入已经收敛过的 Diagnosis Context。</p></div></div>
 
   <div class="diagram">
-    <div class="diagram-title">图 4A · 一次 Case 从上传到多 Jira 的完整后端主流程</div>
+    <div class="diagram-title">图 4A · 一次 Case 从上传、诊断到单 Finding Auto Fix 的完整主流程</div>
     <svg viewBox="0 0 1240 720" width="100%">
       <defs>
         <marker id="flowA" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7c899f"/></marker>
@@ -362,7 +399,7 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
 
       <rect x="860" y="80" width="245" height="95" rx="16" fill="#e9f8f3" stroke="#9bd6c5" filter="url(#shadowA)"/>
       <text x="982" y="116" text-anchor="middle" font-size="18" font-weight="800" fill="#176b55">4 · Evidence Enrichment</text>
-      <text x="982" y="143" text-anchor="middle" font-size="12" fill="#4f7c70">Elastic + Bitbucket + Mapping</text>
+      <text x="982" y="143" text-anchor="middle" font-size="12" fill="#4f7c70">Artifacts + GitHub + Mapping</text>
 
       <path d="M245 128 L310 128" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
       <path d="M510 128 L575 128" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
@@ -371,7 +408,7 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <rect x="130" y="265" width="265" height="120" rx="16" fill="#fff" stroke="#bdc7d9" filter="url(#shadowA)"/>
       <text x="262" y="302" text-anchor="middle" font-size="18" font-weight="800">Service / Application Mapping</text>
       <text x="262" y="330" text-anchor="middle" font-size="12" fill="#667085">Endpoint → Application</text>
-      <text x="262" y="352" text-anchor="middle" font-size="12" fill="#667085">Application → Repo / Log Source / Jira</text>
+      <text x="262" y="352" text-anchor="middle" font-size="12" fill="#667085">Application → GitHub Repository</text>
 
       <rect x="485" y="245" width="270" height="155" rx="16" fill="#f4f0ff" stroke="#b9adff" filter="url(#shadowA)"/>
       <text x="620" y="282" text-anchor="middle" font-size="18" font-weight="800" fill="#44379b">5 · Diagnosis Context Build</text>
@@ -384,7 +421,7 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <text x="955" y="293" text-anchor="middle" font-size="18" font-weight="800" fill="white">6 · Devin Diagnosis</text>
       <text x="955" y="322" text-anchor="middle" font-size="12" fill="#dedbff">Create Session</text>
       <text x="955" y="344" text-anchor="middle" font-size="12" fill="#dedbff">Poll → Structured Output</text>
-      <text x="955" y="366" text-anchor="middle" font-size="12" fill="#dedbff">1..N Findings</text>
+      <text x="955" y="366" text-anchor="middle" font-size="12" fill="#dedbff">0..N Findings</text>
 
       <path d="M982 175 C982 215,320 215,300 265" fill="none" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
       <path d="M395 325 L485 325" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
@@ -401,9 +438,9 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
       <text x="680" y="592" text-anchor="middle" font-size="12" fill="#667085">一个 Case 可多个 Finding</text>
 
       <rect x="880" y="505" width="210" height="115" rx="16" fill="#fff4e5" stroke="#efc16d" filter="url(#shadowA)"/>
-      <text x="985" y="542" text-anchor="middle" font-size="18" font-weight="800" fill="#8a5a00">9 · Jira Routing</text>
-      <text x="985" y="570" text-anchor="middle" font-size="12" fill="#806a3e">Finding → Jira Project</text>
-      <text x="985" y="592" text-anchor="middle" font-size="12" fill="#806a3e">0..N Tickets / Finding</text>
+      <text x="985" y="542" text-anchor="middle" font-size="18" font-weight="800" fill="#8a5a00">9 · Auto Fix</text>
+      <text x="985" y="570" text-anchor="middle" font-size="12" fill="#806a3e">Finding → IMPLEMENT_CHANGE</text>
+      <text x="985" y="592" text-anchor="middle" font-size="12" fill="#806a3e">Fix Attempt → Pull Request</text>
 
       <path d="M955 390 C955 455,410 455,370 505" fill="none" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
       <path d="M485 562 L570 562" stroke="#7c899f" stroke-width="2" marker-end="url(#flowA)"/>
@@ -419,76 +456,72 @@ svg text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang
     <tbody>
       <tr><td>Context</td><td>版本校验、Parser、Normalize、持久化</td><td>无</td></tr>
       <tr><td>异常识别</td><td>规则判断哪些 Context 值得继续调查</td><td>无</td></tr>
-      <tr><td>日志</td><td>构建查询、字段映射、结果标准化、证据落库</td><td>Elastic 执行查询</td></tr>
-      <tr><td>源码</td><td>确定 App/Repo/Commit/候选文件和代码窗口</td><td>Bitbucket 返回源码</td></tr>
+      <tr><td>日志</td><td>预留 Collector 和 missingSources 标记</td><td>Elastic 当前未接入</td></tr>
+      <tr><td>源码</td><td>确定 App/Repo/Ref 并限制授权范围</td><td>Devin 通过已连接的 GitHub 读取源码</td></tr>
       <tr><td>AI</td><td>构建 DiagnosisContext、创建/轮询 Session、验证结果</td><td>Devin 做推理与受限 Repo 探索</td></tr>
-      <tr><td>交付</td><td>Finding 去重、Jira routing、幂等创建</td><td>Jira 保存 Ticket</td></tr>
+      <tr><td>交付</td><td>校验 Finding、创建 Fix Attempt、保存 Commit/PR 结果</td><td>Devin 修改单个授权仓库并创建 PR</td></tr>
     </tbody>
   </table>
 </section>
 
 
 <section id="payload" class="section">
-  <div class="section-title"><div class="num">05</div><div><h2>Context Payload 与接入协议</h2><p class="section-intro">后端不依赖前端究竟通过 SDK 还是浏览器插件产生 Context，只定义稳定、可版本化的 HTTPS Contract。</p></div></div>
+  <div class="section-title"><div class="num">05</div><div><h2>插件 Payload 与接入协议</h2><p class="section-intro">当前正式联调入口是浏览器插件接口；通用 <code>POST /api/v1/cases</code> 作为内部兼容入口保留。</p></div></div>
 
   <h3>5.1 接口</h3>
-  <pre><code>POST /api/v1/cases
+  <pre><code>POST /api/v1/plugin/issues
+Authorization: Ingest &lt;INGEST_TOKEN&gt;
 Content-Type: application/json
-Content-Encoding: gzip   // 可选，推荐大 payload 使用
-Idempotency-Key: &lt;uuid&gt; // 推荐</code></pre>
+Idempotency-Key: &lt;stable unique value&gt; // 可选但强烈推荐</code></pre>
 
-  <h3>5.2 推荐 Payload</h3>
+  <p><code>Idempotency-Key</code> 用于避免插件超时重试时重复创建 Case；同一 Project 内相同 Key 返回同一业务结果。当前 <code>INGEST_TOKEN</code> 映射 Organization、Group 和 Project，不代表登录用户。</p>
+
+  <h3>5.2 当前 PluginIssue Payload</h3>
   <pre><code>{
-  "schemaVersion": "1.0",
-  "case": {
-    "clientCaseId": "9f3f1d6e-...",
-    "sessionId": "session-123",
-    "title": "Account inquiry failed",
-    "description": "Account information cannot be loaded",
-    "severity": "HIGH",
-    "occurredAt": "2026-08-30T13:20:31.123Z"
-  },
-  "scope": {
-    "groupKey": "teller-team",
-    "sourceApplication": "teller-web",
-    "environment": "SIT",
-    "buildVersion": "2026.08.30.1182",
-    "gitCommit": "a83ef123"
-  },
+  "issueId": "iss-mto5nmd8-ebq4fm",
+  "sessionId": "ses-mto5nmd8-h3l02n",
+  "title": "官网统计信息加载失败",
+  "description": "打开官网后统计接口返回 500",
+  "screenshots": [{"dataUrl": "data:image/png;base64,...", "annotated": true}],
   "pageContext": {
-    "url": "https://.../customer/account",
-    "route": "/account/inquiry",
-    "title": "Account Inquiry",
-    "browser": "Chrome"
+    "url": "http://localhost:5173/",
+    "route": "/",
+    "title": "AI Sherlock — 让每一个 Bug 都有迹可循",
+    "submittedAt": "2026-09-06T13:41:32.422Z"
   },
   "network": [{
-    "eventTime": "2026-08-30T13:20:30.921Z",
+    "eventTime": "2026-09-06T13:41:32.422Z",
     "method": "GET",
-    "url": "/ms-name/inquiry/account-info",
+    "url": "https://api.aisherlock.vip/api/v1/public/statistics",
     "status": 500,
-    "durationMs": 823,
-    "transactionId": "TX-938184",
-    "traceId": "abc-123",
-    "requestSummary": {},
     "responseSummary": {}
   }],
   "consoleErrors": [],
   "stacks": [],
-  "runtimeLogs": [],
-  "businessEvents": [],
-  "extensions": {}
+  "replay": null,
+  "sourceHints": {},
+  "recordingSeconds": 15,
+  "meta": {},
+  "scope": {
+    "sourceApplication": "ai-sherlock-web",
+    "environment": "poc",
+    "buildVersion": "local",
+    "gitCommit": "10ba987"
+  }
 }</code></pre>
 
   <table>
     <thead><tr><th>设计点</th><th>要求</th><th>原因</th></tr></thead>
     <tbody>
-      <tr><td>schemaVersion</td><td>必填</td><td>Parser 可按版本兼容旧 Payload。</td></tr>
+      <tr><td>issueType</td><td>不传</td><td>首次提交统一执行诊断，是否修改代码由后续 Auto Fix 接口决定。</td></tr>
       <tr><td>时间字段</td><td>统一 ISO-8601 UTC</td><td>日志窗口和跨系统时间关联必须稳定。</td></tr>
+      <tr><td>network.url</td><td>应传绝对 URL</td><td>后端当前按 <code>environment + host + pathPrefix</code> 定位 Application 和 Repository；相对 URL 无法提供 host。</td></tr>
       <tr><td>traceId / transactionId</td><td>尽可能保留</td><td>优先级高于“仅按时间搜索日志”。</td></tr>
-      <tr><td>extensions</td><td>允许未知 JSON 扩展</td><td>未来增加 Redux、WebSocket、DOM 等不破坏协议。</td></tr>
+      <tr><td>screenshots / replay</td><td>Data URL / Replay 对象</td><td>解析后分别保存为 SCREENSHOT 和 REPLAY_VIDEO Artifact。</td></tr>
       <tr><td>敏感字段</td><td>客户端和服务端双层脱敏</td><td>银行环境不能无差别保留请求/响应正文。</td></tr>
     </tbody>
   </table>
+  <div class="note"><b>相对 URL 后续兼容：</b>Parser/Resolver 应基于 Page URL 解析相对 Network URL，并结合本地代理映射；在该能力落地前，插件必须上送绝对 API URL。不能只按 path 扫描整张映射表，否则容易在多应用场景误匹配。</div>
 </section>
 
 <section id="parser" class="section">
@@ -550,8 +583,10 @@ public record ContextEvent(
 <section id="db" class="section">
   <div class="section-title"><div class="num">07</div><div><h2>数据库模型与表关系</h2><p class="section-intro">PostgreSQL 采用“关系字段 + JSONB 扩展”的 Hybrid Schema。高频过滤字段结构化，复杂原始内容保留 JSONB。</p></div></div>
 
+  <div class="note"><b>物理模型说明：</b>当前数据库由 Flyway <code>V1..V7</code> 自动创建，主键统一为 UUID。原 v1.2 中的 <code>service_registry</code> 和 <code>group_application</code> 未采用：URL 映射拆为 <code>application_endpoint</code>，源码映射拆为 <code>application_repository</code>；Application 直接归属 Project。</div>
+
   <div class="diagram">
-    <div class="diagram-title">图 5 · 核心 ER Diagram</div>
+    <div class="diagram-title">图 5 · 领域概念图（物理表以本节 7.1 和 Flyway 为准）</div>
     <svg viewBox="0 0 1240 790" width="100%">
       <rect width="1240" height="790" rx="18" fill="#fbfcff"/>
       <!-- platform left -->
@@ -565,12 +600,12 @@ public record ContextEvent(
         <text x="55" y="296" font-size="11" fill="#667085">group_key, name, settings</text>
         <rect x="35" y="390" width="220" height="125" rx="14" fill="#eaf8f3" stroke="#9bd9c4"/>
         <text x="55" y="417" font-weight="700" font-size="15" fill="#176b55">application</text>
-        <text x="55" y="441" font-size="11" fill="#667085">PK id</text><text x="55" y="461" font-size="11" fill="#667085">FK organization_id</text>
-        <text x="55" y="481" font-size="11" fill="#667085">app_key, app_type</text>
+        <text x="55" y="441" font-size="11" fill="#667085">PK id</text><text x="55" y="461" font-size="11" fill="#667085">FK project_id</text>
+        <text x="55" y="481" font-size="11" fill="#667085">application_key, type</text>
         <rect x="35" y="575" width="220" height="135" rx="14" fill="#fff4e5" stroke="#efc16d"/>
-        <text x="55" y="602" font-weight="700" font-size="15" fill="#8a5a00">service_registry</text>
-        <text x="55" y="626" font-size="11" fill="#667085">PK id</text><text x="55" y="646" font-size="11" fill="#667085">FK application_id UNIQUE</text>
-        <text x="55" y="666" font-size="11" fill="#667085">url_patterns, repo_config</text><text x="55" y="686" font-size="11" fill="#667085">log_config, jira_config</text>
+        <text x="55" y="602" font-weight="700" font-size="15" fill="#8a5a00">application mappings</text>
+        <text x="55" y="626" font-size="11" fill="#667085">application_endpoint 1..N</text><text x="55" y="646" font-size="11" fill="#667085">environment, host, path_prefix</text>
+        <text x="55" y="666" font-size="11" fill="#667085">application_repository 1..N</text><text x="55" y="686" font-size="11" fill="#667085">repository, branch, source_root</text>
       </g>
 
       <!-- center case -->
@@ -578,38 +613,38 @@ public record ContextEvent(
       <text x="380" y="96" font-size="17" font-weight="800" fill="white">diagnosis_case</text>
       <g font-size="11" fill="#e8e6ff">
         <text x="380" y="124">PK id · case_key UNIQUE</text><text x="380" y="145">FK organization_id</text>
-        <text x="380" y="166">FK group_id</text><text x="380" y="187">FK source_application_id</text>
-        <text x="380" y="208">session_id · status · severity</text><text x="380" y="229">schema_version · raw_payload JSONB</text>
+        <text x="380" y="166">FK group_id · FK project_id</text><text x="380" y="187">FK ingestion_token_id</text>
+        <text x="380" y="208">source_application · environment</text><text x="380" y="229">status · raw_payload JSONB</text>
       </g>
       <rect x="335" y="335" width="235" height="165" rx="14" fill="#fff" stroke="#bdc7d9"/>
       <text x="355" y="362" font-weight="700" font-size="15">context_event</text>
-      <g font-size="11" fill="#667085"><text x="355" y="386">PK id · FK case_id</text><text x="355" y="407">event_type · event_time</text>
-      <text x="355" y="428">transaction_id · trace_id</text><text x="355" y="449">application_id · level</text><text x="355" y="470">summary · payload JSONB</text></g>
+      <g font-size="11" fill="#667085"><text x="355" y="386">PK id · FK case_id</text><text x="355" y="407">type · event_time · sequence_no</text>
+      <text x="355" y="428">transaction_id · trace_id</text><text x="355" y="449">payload JSONB</text><text x="355" y="470">UNIQUE(case_id, sequence_no)</text></g>
       <rect x="610" y="335" width="235" height="165" rx="14" fill="#fff" stroke="#bdc7d9"/>
       <text x="630" y="362" font-weight="700" font-size="15">diagnosis_evidence</text>
-      <g font-size="11" fill="#667085"><text x="630" y="386">PK id · FK case_id</text><text x="630" y="407">evidence_type · source_system</text>
-      <text x="630" y="428">application_id · repo · file</text><text x="630" y="449">line_start / line_end</text><text x="630" y="470">content · metadata JSONB</text></g>
+      <g font-size="11" fill="#667085"><text x="630" y="386">PK id · FK case_id · run_id</text><text x="630" y="407">evidence_type · source</text>
+      <text x="630" y="428">application_id</text><text x="630" y="449">payload JSONB</text><text x="630" y="470">mapping / source references</text></g>
 
       <!-- right diagnosis -->
       <rect x="910" y="65" width="270" height="175" rx="14" fill="#f4f0ff" stroke="#b9adff"/>
       <text x="930" y="92" font-weight="700" font-size="15" fill="#44379b">diagnosis_run</text>
-      <g font-size="11" fill="#667085"><text x="930" y="116">PK id · FK case_id</text><text x="930" y="137">provider · model · status</text>
-      <text x="930" y="158">prompt_version · external_task_id</text><text x="930" y="179">input_summary JSONB</text><text x="930" y="200">raw_result JSONB</text></g>
+      <g font-size="11" fill="#667085"><text x="930" y="116">PK id · FK case_id · finding_id</text><text x="930" y="137">mode · provider · status</text>
+      <text x="930" y="158">provider_session_id · cleanup_status</text><text x="930" y="179">context_snapshot / provider_response</text><text x="930" y="200">structured_output JSONB</text></g>
 
       <rect x="910" y="320" width="270" height="205" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/>
       <text x="930" y="347" font-weight="700" font-size="15" fill="#176b55">diagnosis_finding</text>
-      <g font-size="11" fill="#667085"><text x="930" y="371">PK id · finding_key UNIQUE</text><text x="930" y="392">FK case_id · FK diagnosis_run_id</text>
-      <text x="930" y="413">finding_type · application_id</text><text x="930" y="434">repo · file · method · lines</text>
-      <text x="930" y="455">confidence · severity · status</text><text x="930" y="476">root_cause_summary</text><text x="930" y="497">recommended_fix · detail JSONB</text></g>
+      <g font-size="11" fill="#667085"><text x="930" y="371">PK id · FK case_id · run_id</text><text x="930" y="392">FK application_id</text>
+      <text x="930" y="413">finding_type · title</text><text x="930" y="434">validation_status</text>
+      <text x="930" y="455">payload JSONB</text><text x="930" y="476">repository / commit / file / lines</text><text x="930" y="497">rootCause / recommendedFix</text></g>
 
       <rect x="910" y="595" width="270" height="130" rx="14" fill="#fff4e5" stroke="#efc16d"/>
-      <text x="930" y="622" font-weight="700" font-size="15" fill="#8a5a00">jira_ticket</text>
-      <g font-size="11" fill="#667085"><text x="930" y="646">PK id</text><text x="930" y="667">FK case_id · FK finding_id</text>
-      <text x="930" y="688">jira_project · jira_key · status</text><text x="930" y="709">payload JSONB</text></g>
+      <text x="930" y="622" font-weight="700" font-size="15" fill="#8a5a00">finding_fix_attempt</text>
+      <g font-size="11" fill="#667085"><text x="930" y="646">PK id</text><text x="930" y="667">FK case_id · finding_id · run_id</text>
+      <text x="930" y="688">execution_status · target_branch</text><text x="930" y="709">commit_sha · pull_request_url</text></g>
 
       <rect x="350" y="605" width="250" height="120" rx="14" fill="#fff" stroke="#bdc7d9"/>
       <text x="370" y="632" font-weight="700" font-size="15">diagnosis_job</text>
-      <g font-size="11" fill="#667085"><text x="370" y="656">PK id · FK case_id</text><text x="370" y="677">job_type · status · retry_count</text><text x="370" y="698">external_task_id · error_message</text></g>
+      <g font-size="11" fill="#667085"><text x="370" y="656">PK id · FK case_id · run_id</text><text x="370" y="677">job_type · status · attempt_count</text><text x="370" y="698">lease_token · next_retry_at · last_error</text></g>
 
       <!-- relation lines -->
       <g stroke="#8793a9" stroke-width="1.8" fill="none">
@@ -620,7 +655,7 @@ public record ContextEvent(
         <path d="M255 642 L610 418"/>
       </g>
       <g font-size="10" fill="#667085">
-        <text x="290" y="97">1:N</text><text x="280" y="222">1:N</text><text x="285" y="380">N:M via group_application</text>
+        <text x="290" y="97">1:N</text><text x="280" y="222">Group 1:N Project</text><text x="285" y="380">Project 1:N Application</text>
         <text x="458" y="302">1:N</text><text x="626" y="302">1:N</text><text x="780" y="135">1:N</text>
         <text x="1056" y="282">1:N</text><text x="1056" y="565">1:N</text>
       </g>
@@ -631,75 +666,77 @@ public record ContextEvent(
   <table>
     <thead><tr><th>表</th><th>职责</th><th>是否 MVP 必须</th></tr></thead>
     <tbody>
-      <tr><td>diagnosis_case</td><td>诊断聚合根、原始 Payload、状态、组织归属</td><td>是</td></tr>
+      <tr><td>organization / team_group / project</td><td>租户、团队与项目数据边界；POC Seed 初始化一套默认数据</td><td>是</td></tr>
+      <tr><td>app_user / auth_identity</td><td>未来 Google SSO 用户与外部身份映射</td><td>表已建，流程后接</td></tr>
+      <tr><td>ingestion_token</td><td>保存 Token Hash，并绑定 Organization、Group、Project</td><td>是</td></tr>
+      <tr><td>application</td><td>Project 内的 FRONTEND/BACKEND/GATEWAY 逻辑应用</td><td>是</td></tr>
+      <tr><td>application_endpoint</td><td><code>environment + host + path_prefix</code> 到 Application 的最长前缀匹配</td><td>是</td></tr>
+      <tr><td>application_repository</td><td>Application 到 GitHub Repository、默认分支与 source root 的映射</td><td>是</td></tr>
+      <tr><td>diagnosis_case</td><td>诊断聚合根、原始 Payload、状态和 Project 归属</td><td>是</td></tr>
       <tr><td>context_event</td><td>标准化现场事件</td><td>是</td></tr>
+      <tr><td>case_artifact</td><td>截图和 Replay；支持 DATABASE / OBJECT_STORAGE 两种存储</td><td>是</td></tr>
       <tr><td>diagnosis_evidence</td><td>日志、源码、Sourcemap、服务映射等后端补全证据</td><td>是</td></tr>
-      <tr><td>diagnosis_run</td><td>一次 AI 执行记录，允许重跑和切换 Provider</td><td>是</td></tr>
-      <tr><td>diagnosis_finding</td><td>独立问题/根因候选；一个 Case 可多条</td><td>是</td></tr>
-      <tr><td>jira_ticket</td><td>Finding 对应的 Jira 创建结果</td><td>是</td></tr>
-      <tr><td>diagnosis_job</td><td>异步步骤、重试、外部 task id</td><td>是</td></tr>
-      <tr><td>organization / team_group / application</td><td>平台化边界</td><td>建议表先建，UI 可后做</td></tr>
-      <tr><td>service_registry</td><td>Application 到 URL/Repo/Log/Jira 技术配置映射</td><td>是</td></tr>
+      <tr><td>diagnosis_run</td><td>一次 Devin/Mock 执行；mode 区分 DIAGNOSE 和 IMPLEMENT_CHANGE</td><td>是</td></tr>
+      <tr><td>diagnosis_finding</td><td>已校验的独立问题；核心字段在关系列，完整结果保留 JSONB</td><td>是</td></tr>
+      <tr><td>finding_fix_attempt</td><td>单 Finding 的一次 Auto Fix 请求、审批审计、Run、Commit 与 PR 结果</td><td>是</td></tr>
+      <tr><td>diagnosis_job</td><td>PostgreSQL 异步任务队列、租约、重试和 Run 关联</td><td>是</td></tr>
+      <tr><td>change_request</td><td>旧 Case 级变更流程兼容表</td><td>停用主流程</td></tr>
     </tbody>
   </table>
 
-  <h3>7.2 关键 DDL（节选）</h3>
+  <h3>7.2 当前关键关系（Flyway V1..V7）</h3>
   <pre><code>CREATE TABLE diagnosis_case (
-    id                    BIGSERIAL PRIMARY KEY,
-    case_key              VARCHAR(64) NOT NULL UNIQUE,
-    organization_id       BIGINT NOT NULL,
-    group_id              BIGINT,
-    source_application_id BIGINT,
-    session_id            VARCHAR(128),
-    title                 VARCHAR(500) NOT NULL,
-    description           TEXT,
-    severity              VARCHAR(32),
-    environment           VARCHAR(64),
-    occurred_at           TIMESTAMPTZ,
-    received_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
-    status                VARCHAR(32) NOT NULL,
-    schema_version        VARCHAR(16) NOT NULL,
-    raw_payload           JSONB NOT NULL,
-    created_by            VARCHAR(128),
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+    id UUID PRIMARY KEY,
+    case_key VARCHAR(40) NOT NULL UNIQUE,
+    organization_id UUID NOT NULL,
+    group_id UUID NOT NULL,
+    project_id UUID NOT NULL,
+    ingestion_token_id UUID NOT NULL,
+    idempotency_key VARCHAR(200),
+    source_application VARCHAR(120) NOT NULL,
+    environment VARCHAR(40) NOT NULL,
+    raw_payload JSONB NOT NULL,
+    UNIQUE(project_id, idempotency_key)
 );
 
-CREATE TABLE context_event (
-    id             BIGSERIAL PRIMARY KEY,
-    case_id        BIGINT NOT NULL REFERENCES diagnosis_case(id),
-    event_type     VARCHAR(32) NOT NULL,
-    event_time     TIMESTAMPTZ NOT NULL,
-    sequence_no    INTEGER,
-    transaction_id VARCHAR(128),
-    trace_id       VARCHAR(128),
-    application_id BIGINT,
-    level          VARCHAR(32),
-    summary        TEXT,
-    payload        JSONB NOT NULL,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE application_endpoint (
+    id UUID PRIMARY KEY,
+    application_id UUID NOT NULL REFERENCES application(id),
+    environment VARCHAR(40) NOT NULL,
+    host VARCHAR(255) NOT NULL,
+    path_prefix VARCHAR(1000) NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    enabled BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE TABLE diagnosis_finding (
-    id                 BIGSERIAL PRIMARY KEY,
-    case_id            BIGINT NOT NULL REFERENCES diagnosis_case(id),
-    diagnosis_run_id   BIGINT NOT NULL REFERENCES diagnosis_run(id),
-    finding_key        VARCHAR(64) NOT NULL UNIQUE,
-    finding_type       VARCHAR(32) NOT NULL,
-    application_id     BIGINT,
-    repository_name    VARCHAR(256),
-    file_path          TEXT,
-    method_name        VARCHAR(256),
-    line_start         INTEGER,
-    line_end           INTEGER,
-    title              VARCHAR(500) NOT NULL,
-    root_cause_summary TEXT,
-    recommended_fix    TEXT,
-    confidence         NUMERIC(5,4),
-    severity           VARCHAR(32),
-    status             VARCHAR(32) NOT NULL,
-    detail             JSONB,
-    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE diagnosis_run (
+    id UUID PRIMARY KEY,
+    case_id UUID NOT NULL REFERENCES diagnosis_case(id),
+    finding_id UUID REFERENCES diagnosis_finding(id),
+    mode VARCHAR(32) NOT NULL,       -- DIAGNOSE / IMPLEMENT_CHANGE
+    provider VARCHAR(32) NOT NULL,   -- devin / mock
+    status VARCHAR(32) NOT NULL,
+    context_snapshot JSONB NOT NULL,
+    provider_request JSONB,
+    provider_response JSONB,
+    structured_output JSONB,
+    cleanup_status VARCHAR(32) NOT NULL
+);
+
+CREATE TABLE finding_fix_attempt (
+    id UUID PRIMARY KEY,
+    case_id UUID NOT NULL REFERENCES diagnosis_case(id),
+    finding_id UUID NOT NULL REFERENCES diagnosis_finding(id),
+    run_id UUID NOT NULL UNIQUE REFERENCES diagnosis_run(id),
+    idempotency_key VARCHAR(200) NOT NULL,
+    instructions TEXT,
+    approval_policy VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
+    approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',
+    execution_status VARCHAR(32) NOT NULL,
+    target_branch VARCHAR(255) NOT NULL,
+    commit_sha CHAR(40),
+    pull_request_url TEXT,
+    UNIQUE(finding_id, idempotency_key)
 );</code></pre>
 </section>
 
@@ -751,7 +788,7 @@ CREATE TABLE diagnosis_finding (
 </section>
 
 <section id="elastic" class="section">
-  <div class="section-title"><div class="num">09</div><div><h2>Elastic / Kibana 日志查询</h2><p class="section-intro">业务侧常说“查 Kibana”，但架构层建议抽象为 LogSearchClient；如果底层允许，优先直接查询 Elasticsearch，而不是耦合 Kibana UI 内部接口。</p></div></div>
+  <div class="section-title"><div class="num">09</div><div><h2>Elastic / Kibana 日志查询（后续）</h2><p class="section-intro">当前 POC 不连接 Elastic，统一输出 <code>ELASTIC_NOT_CONFIGURED</code>。后续通过 LogSearchClient 接入；底层允许时优先直接查询 Elasticsearch，避免耦合 Kibana UI 内部接口。</p></div></div>
 
   <h3>9.1 查询优先级</h3>
   <div class="grid grid-4">
@@ -834,37 +871,28 @@ source_system            // ELASTIC / BITBUCKET / SOURCEMAP / MAPPING</code></pr
 
 
 <section id="source" class="section">
-  <div class="section-title"><div class="num">10</div><div><h2>Bitbucket / 源码定位</h2><p class="section-intro">源码定位同样遵循“确定性优先”：先通过 Service Registry 和 Stacktrace 缩小范围，再让 AI 在候选代码内推理。</p></div></div>
+  <div class="section-title"><div class="num">10</div><div><h2>Application / Endpoint / Repository 映射</h2><p class="section-intro">当前 POC 使用 GitHub。URL 定位和仓库授权是两层独立配置，避免把可查询字段与 Provider 配置塞进单个 JSON Registry。</p></div></div>
 
-  <div class="highlight"><b>示例：</b> <code>/ms-name/inquiry/account-info → ms-name → account-ms repo → AccountInquiryService.java:184 → 读取 150~220 行 → AI 分析</code></div>
+  <div class="highlight"><b>当前示例：</b> <code>poc + api.aisherlock.vip + /api → ai-sherlock-api → tonymiao2012/ms-ai-sherlock@main → Devin 受限检索</code></div>
 
-  <h3>10.1 Service Registry 推荐模型</h3>
-  <pre><code>{
-  "applicationId": 42,
-  "urlPatterns": ["/ms-name/**"],
-  "repository": {
-    "provider": "BITBUCKET",
-    "project": "CBS",
-    "repo": "account-ms",
-    "defaultBranch": "main"
-  },
-  "log": {
-    "provider": "ELASTIC",
-    "indexPattern": "ms-name-*"
-  },
-  "jira": {
-    "project": "ACCOUNT"
-  }
-}</code></pre>
+  <h3>10.1 当前物理模型</h3>
+  <pre><code>application
+  ├── application_endpoint[]
+  │     environment + host + path_prefix + priority
+  └── application_repository[]
+        provider(GITHUB) + repository + default_branch + source_root</code></pre>
+
+  <p>失败的 NETWORK Event 按 host 查询候选 Endpoint，再按最长 <code>path_prefix</code> 和 priority 选出 Application。随后加载该 Application 的启用 Repository，并将去重后的仓库集合写入 Devin v3 的 <code>repos</code>。</p>
+
+  <div class="danger"><b>已确认的联调缺口：</b>如果插件上送 <code>/api/v1/public/statistics</code> 这类相对 URL，当前 Resolver 因无法取得 host 而跳过映射，Devin 只会拿到 sourceApplication 对应的前端仓库，并可能因缺少后端仓库返回空 Findings。短期要求插件发送绝对 URL；后续由 Resolver 基于 Page URL 和显式代理配置安全补全。</div>
 
   <h3>10.2 Source Resolver 顺序</h3>
   <ol>
-    <li>从 URL / Application 获取目标 Repository。</li>
-    <li>如果日志带 <code>Class.java:line</code>，直接计算文件候选。</li>
-    <li>根据 buildVersion / gitCommit 确定代码版本；不得默认 main 等于线上版本。</li>
-    <li>只取命中行附近窗口（例如 ±50 行）和必要依赖方法。</li>
-    <li>没有精确 stack 时，再做 symbol / endpoint / exception message 搜索。</li>
-    <li>形成 SOURCE_CODE Evidence，而不是直接交给 AI 远程漫游整个仓库。</li>
+    <li>sourceApplication 先加入源应用；失败的 NETWORK URL 再补充被调用应用。</li>
+    <li>从 <code>application_repository</code> 加载授权仓库；缺失配置直接失败，不让 AI 猜仓库。</li>
+    <li>优先使用插件报告的 gitCommit；未报告时使用 configured branch，并标记 <code>CONFIGURED_BRANCH</code>，不能宣称等于线上版本。</li>
+    <li>POC 由 Devin 在明确的 <code>repos</code> 范围内读取 GitHub 代码；后端校验输出中的 repository、commit、file 和 evidenceRefs。</li>
+    <li>未来 Bitbucket 通过 Repository Provider Adapter 接入，不改变 Case、Run 和 Finding 领域模型。</li>
   </ol>
 </section>
 
@@ -924,7 +952,7 @@ source_system            // ELASTIC / BITBUCKET / SOURCEMAP / MAPPING</code></pr
       </g>
 
       <text x="590" y="430" text-anchor="middle" font-size="12" fill="#667085">Devin 不直接消费 raw_payload；它消费 Java 构建的 DiagnosisContext。</text>
-      <text x="590" y="456" text-anchor="middle" font-size="12" fill="#667085">Finding 必须经过 Result Validator 后才能进入正式诊断结果和 Jira 流程。</text>
+      <text x="590" y="456" text-anchor="middle" font-size="12" fill="#667085">Finding 必须经过 Result Validator 后才能进入正式诊断结果和 Auto Fix 流程。</text>
     </svg>
   </div>
 
@@ -974,51 +1002,44 @@ Content-Type: application/json</code></pre>
   <div class="note"><b>设计约束：</b>上述 Devin API 字段属于外部 Provider Contract，应封装在 Integration Module；如果 Devin API 未来变化，只修改 Devin Adapter，不影响 Case / Evidence / Finding 核心领域。</div>
 
   <h3>11.3 DiagnosisContext：真正发送给 AI 的数据</h3>
-  <p>Java 需要把 Case 中数百甚至数千条 Context/Event 压缩为一个证据导向的输入。推荐内部模型：</p>
+  <p>Java 把 Case、授权仓库、映射证据、失败事件和 Artifact 元数据收敛为可审计的 Context Snapshot。当前内部模型：</p>
   <pre><code>{
-  "case": {
-    "caseKey": "SH-20260830-A8F31",
-    "title": "Account inquiry failed",
-    "description": "Customer account information cannot be loaded",
-    "environment": "SIT",
-    "buildVersion": "2026.08.30.1182",
-    "occurredAt": "2026-08-30T13:20:31Z"
-  },
-
-  "runtimeContext": [
+  "schemaVersion": "1.0",
+  "caseKey": "SH-20260906-FABBCBFF",
+  "title": "官网统计信息加载失败",
+  "description": "打开官网后统计接口返回 500",
+  "environment": "poc",
+  "occurredAt": "2026-09-06T13:41:32Z",
+  "repositories": [
     {
-      "ref": "CTX-101",
-      "type": "NETWORK",
-      "summary": "GET /ms-name/inquiry/account-info -> HTTP 500",
-      "traceId": "abc-123",
-      "transactionId": "TX-938184"
+      "applicationId": "...",
+      "application": "ai-sherlock-api",
+      "repository": "tonymiao2012/ms-ai-sherlock",
+      "sourceRoot": "",
+      "ref": "main",
+      "versionSource": "CONFIGURED_BRANCH"
     }
   ],
-
   "evidence": [
     {
-      "ref": "EVD-301",
-      "type": "BACKEND_LOG",
-      "application": "account-ms",
-      "summary": "NPE in AccountInquiryService.getAccountInfo",
-      "content": "..."
-    },
-    {
-      "ref": "EVD-302",
-      "type": "SOURCE_CODE",
-      "repository": "account-ms",
-      "commit": "a83ef123",
-      "file": "src/.../AccountInquiryService.java",
-      "lineStart": 150,
-      "lineEnd": 220,
-      "content": "..."
+      "id": "...",
+      "type": "APPLICATION_MAPPING",
+      "source": "REGISTRY",
+      "applicationId": "...",
+      "data": {"repository": "tonymiao2012/ms-ai-sherlock", "ref": "main"}
     }
   ],
-
-  "authorizedRepositories": [
-    "account-ms",
-    "teller-web"
-  ]
+  "events": [
+    {
+      "id": "...",
+      "type": "NETWORK",
+      "sequence": 1,
+      "failure": true,
+      "payload": {"url": "https://api.aisherlock.vip/api/v1/public/statistics", "status": 500}
+    }
+  ],
+  "omittedEvents": 0,
+  "missingSources": ["ELASTIC_NOT_CONFIGURED"]
 }</code></pre>
 
   <h3>11.4 Context Builder 的裁剪规则</h3>
@@ -1028,7 +1049,7 @@ Content-Type: application/json</code></pre>
       <tr><td>Network</td><td>失败请求、慢请求、与错误时间窗口/trace 关联的请求优先</td></tr>
       <tr><td>Console</td><td>ERROR、关键 WARN、与失败请求相关日志</td></tr>
       <tr><td>Backend Logs</td><td>trace/transaction 精确匹配优先；去重后保留异常上下文</td></tr>
-      <tr><td>Source</td><td>只传候选文件/方法/行号窗口，不默认传整个仓库文本</td></tr>
+      <tr><td>Repository</td><td>只传 Application Mapping 允许的 Repository/Ref；POC 由 Devin 在仓库内读取</td></tr>
       <tr><td>Raw Payload</td><td>不直接发送；只作为 Case 审计原始数据</td></tr>
       <tr><td>敏感字段</td><td>在 DiagnosisContextBuilder 前完成 masking / removal</td></tr>
     </tbody>
@@ -1056,48 +1077,26 @@ Rules:
 - Do not create Jira issues or modify code in this diagnosis session.</code></pre>
 
   <h3>11.6 Structured Output Schema</h3>
-  <p>Devin 应返回 Case-level Summary + Finding Array。示例业务结果：</p>
+  <p>Devin 必须返回 <code>complete=true</code>、Case Summary 和 Finding Array；证据不足时允许 Findings 为空。示例结果：</p>
   <pre><code>{
-  "caseSummary": "The account inquiry failed because the backend service threw an NPE; the frontend also maps this backend failure to an incorrect empty-state.",
-
+  "complete": true,
+  "caseSummary": "The statistics endpoint divides by zero when no fix attempts exist.",
   "findings": [
     {
       "type": "BACKEND",
-      "title": "Missing null handling in AccountInquiryService",
-      "aiConfidence": 0.93,
-
-      "application": "account-ms",
-      "repository": "account-ms",
-      "file": "src/main/java/.../AccountInquiryService.java",
-      "method": "getAccountInfo",
-      "lineStart": 176,
-      "lineEnd": 192,
-
-      "rootCause": "...",
-      "recommendedFix": "...",
-
-      "evidenceRefs": [
-        "CTX-101",
-        "EVD-301",
-        "EVD-302"
-      ]
-    },
-
-    {
-      "type": "FRONTEND",
-      "title": "HTTP 500 is rendered as empty account state",
-      "aiConfidence": 0.81,
-
-      "application": "teller-web",
-      "repository": "teller-web",
-      "file": "src/pages/AccountInquiry.tsx",
-
-      "rootCause": "...",
-      "recommendedFix": "...",
-      "evidenceRefs": [
-        "CTX-101",
-        "EVD-401"
-      ]
+      "title": "Division by zero in public statistics",
+      "application": "ai-sherlock-api",
+      "repository": "tonymiao2012/ms-ai-sherlock",
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "file": "src/main/java/vip/aisherlock/statistics/PublicStatisticsService.java",
+      "method": "get",
+      "lineStart": 22,
+      "lineEnd": 31,
+      "rootCause": "The success-rate calculation does not handle fixAttempts=0.",
+      "recommendedFix": "Return 0.0 when no attempts exist and add a regression test.",
+      "aiConfidence": 0.98,
+      "severity": "HIGH",
+      "evidenceRefs": ["network-event-uuid", "application-mapping-evidence-uuid"]
     }
   ]
 }</code></pre>
@@ -1132,16 +1131,10 @@ Rules:
     </svg>
   </div>
 
-  <p>当前官方 Get Session 返回 Session 状态和 <code>structured_output</code>；后端将 Provider 状态映射为内部 <code>RUNNING / COMPLETED / FAILED / SUSPENDED</code> 等有限状态。对外部状态名不在核心领域中扩散。</p>
+  <p>Get Session 同时返回 Session 状态与 <code>structured_output</code>。实践中 Provider 可能在顶层仍为 <code>running</code> 时已经返回 <code>complete=true</code>；后端以“Structured Output 完整且校验通过”为完成条件，落库后异步执行 STOP_DEVIN。顶层状态只用于识别 error/suspended/exit 等异常，不扩散为核心领域状态。</p>
 
   <h3>11.8 Polling / Timeout / Retry</h3>
-  <p>建议 Polling 采用阶梯退避，例如：</p>
-  <pre><code>5s → 10s → 15s → 30s → 30s ...</code></pre>
-  <p>并在 Group / Capability 或系统配置中定义：</p>
-  <pre><code>diagnosis.max-duration
-diagnosis.max-retry
-diagnosis.max-acu
-diagnosis.poll-backoff</code></pre>
+  <p>当前通过 <code>DEVIN_POLL_SECONDS</code> 使用固定间隔（POC 默认 3 秒），通过 <code>DEVIN_TIMEOUT_MINUTES</code> 控制 Run deadline，并以 <code>DEVIN_MAX_ACU</code> 限制单次 Session 消耗。后续负载提升后再增加阶梯退避和抖动。</p>
 
   <p>对于 429、5xx、网络超时可以重试；对于认证/权限/Repo 不可访问等确定性错误，应直接失败并记录原因，避免无意义重试。</p>
 
@@ -1151,7 +1144,8 @@ diagnosis.poll-backoff</code></pre>
     <tbody>
       <tr><td>Evidence-only</td><td>提前读取候选代码并放入 Evidence</td><td>只分析提供的代码</td><td>安全限制最严格</td></tr>
       <tr><td>Repository-aware</td><td>传入授权 Repo scope</td><td>自主探索 Repo</td><td>上下文完整、效率高</td></tr>
-      <tr><td><b>Hybrid（推荐）</b></td><td>先找候选文件/代码窗口 + Repo scope</td><td>在授权 Repo 内继续验证调用关系</td><td>本项目最适合</td></tr>
+      <tr><td><b>Repository-aware（当前）</b></td><td>构建授权 Repo/Ref 与证据范围</td><td>在授权 GitHub Repo 内读取和验证</td><td>外网 POC</td></tr>
+      <tr><td>Hybrid（后续）</td><td>先找候选文件/代码窗口 + Repo scope</td><td>在授权 Repo 内继续验证调用关系</td><td>接入日志和源码预取后</td></tr>
     </tbody>
   </table>
 
@@ -1161,7 +1155,7 @@ diagnosis.poll-backoff</code></pre>
     <thead><tr><th>验证项</th><th>验证方式</th><th>失败时</th></tr></thead>
     <tbody>
       <tr><td>Repository</td><td>是否属于 Case 授权 Repo / Application Mapping</td><td>INVALID_REFERENCE</td></tr>
-      <tr><td>File</td><td>Bitbucket 指定 commit 下文件是否存在</td><td>降低 confidence / Reject</td></tr>
+      <tr><td>File</td><td>启用 GITHUB_VERIFY_ENABLED 时验证指定 commit 下文件存在</td><td>降低 confidence / Reject</td></tr>
       <tr><td>Line</td><td>是否在文件有效范围内</td><td>修正或 Reject</td></tr>
       <tr><td>Evidence Refs</td><td>是否真实存在且属于当前 Case</td><td>不能标 VERIFIED</td></tr>
       <tr><td>Application</td><td>Application ↔ Repo Mapping 是否一致</td><td>降级为 AI_SUGGESTED</td></tr>
@@ -1176,23 +1170,24 @@ verification_status</code></pre>
   <p>其中 <code>system_confidence</code> 由证据质量和验证结果共同计算，而不是直接复制模型给出的 confidence。</p>
 
   <h3>11.11 Diagnosis Run 持久化</h3>
-  <p><code>diagnosis_run</code> 推荐扩充到可以完整追踪一次外部 AI 调用：</p>
+  <p><code>diagnosis_run</code> 当前可完整追踪一次外部 AI 调用：</p>
   <pre><code>id
 case_id
-provider                 // DEVIN
+finding_id               // IMPLEMENT_CHANGE 时指向目标 Finding
+mode                     // DIAGNOSE / IMPLEMENT_CHANGE
+provider                 // devin / mock
 provider_session_id
-provider_status
 status
 prompt_version
 schema_version
-repo_access_mode
-started_at
-completed_at
-raw_request JSONB
-raw_response JSONB
-structured_result JSONB
-error_code
-error_message</code></pre>
+context_snapshot JSONB
+provider_request JSONB
+provider_response JSONB
+structured_output JSONB
+summary
+last_error
+cleanup_status
+deadline_at / created_at / updated_at / finished_at</code></pre>
 
   <h3>11.12 官方 Devin v3 能力基线</h3>
   <p class="small">本设计以 2026-08-30 Devin 官方 v3 文档为 API 基线。Create Session 支持 <code>repos</code>、<code>structured_output_required</code>、<code>structured_output_schema</code>、<code>tags</code> 等字段；Session 响应包含 <code>session_id</code>、<code>status</code> 和 <code>structured_output</code>。实现前仍应以公司实际 Devin Tenant 权限和 Repository Connection 配置为准。</p>
@@ -1205,10 +1200,10 @@ error_message</code></pre>
 
 
 <section id="finding" class="section">
-  <div class="section-title"><div class="num">12</div><div><h2>Finding 与多 Jira 模型</h2><p class="section-intro">一次 Case 可能同时包含前端、后端和联动问题，因此 Jira 必须绑定 Finding，而不是直接绑定 Case。</p></div></div>
+  <div class="section-title"><div class="num">12</div><div><h2>Finding 与 Auto Fix 模型</h2><p class="section-intro">一次 Case 可包含多个独立问题；Finding 是诊断结果和后续修改代码之间的稳定边界。</p></div></div>
 
   <div class="diagram">
-    <div class="diagram-title">图 8 · 一个 Case 拆分多个 Finding / Jira</div>
+    <div class="diagram-title">图 8 · 一个 Case 拆分多个 Finding，并独立触发 Fix Attempt</div>
     <svg viewBox="0 0 1120 430" width="100%">
       <rect width="1120" height="430" rx="18" fill="#fbfcff"/>
       <rect x="55" y="155" width="220" height="95" rx="16" fill="#4f46e5"/>
@@ -1227,11 +1222,11 @@ error_message</code></pre>
       </g>
       <g>
         <rect x="795" y="45" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
-        <text x="900" y="82" text-anchor="middle" font-size="16" font-weight="700">WEB-123</text><text x="900" y="108" text-anchor="middle" font-size="12" fill="#667085">Jira Project WEB</text>
+        <text x="900" y="82" text-anchor="middle" font-size="16" font-weight="700">Fix Attempt A</text><text x="900" y="108" text-anchor="middle" font-size="12" fill="#667085">PR_CREATED</text>
         <rect x="795" y="170" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
-        <text x="900" y="207" text-anchor="middle" font-size="16" font-weight="700">ACCOUNT-845</text><text x="900" y="233" text-anchor="middle" font-size="12" fill="#667085">Jira Project ACCOUNT</text>
+        <text x="900" y="207" text-anchor="middle" font-size="16" font-weight="700">Fix Attempt B</text><text x="900" y="233" text-anchor="middle" font-size="12" fill="#667085">FAILED / Retryable</text>
         <rect x="795" y="295" width="210" height="90" rx="16" fill="#fff" stroke="#bdc7d9"/>
-        <text x="900" y="332" text-anchor="middle" font-size="16" font-weight="700">CUSTOMER-391</text><text x="900" y="358" text-anchor="middle" font-size="12" fill="#667085">Jira Project CUSTOMER</text>
+        <text x="900" y="332" text-anchor="middle" font-size="16" font-weight="700">Not Triggered</text><text x="900" y="358" text-anchor="middle" font-size="12" fill="#667085">Finding remains diagnosed</text>
       </g>
       <g stroke="#7b879f" stroke-width="2" fill="none">
         <path d="M275 200 C330 200,330 90,390 90"/><path d="M275 200 L390 215"/><path d="M275 200 C330 200,330 340,390 340"/>
@@ -1240,17 +1235,20 @@ error_message</code></pre>
     </svg>
   </div>
 
-  <h3>12.1 Finding 去重 / 合并策略</h3>
+  <h3>12.1 Finding 与修复边界</h3>
   <ul>
     <li>同一 Run 内按照 <code>application + file + method + rootCause fingerprint</code> 做基础去重。</li>
     <li>不同 Finding 责任域不同，默认不合并。</li>
-    <li>一个 Finding 可创建 0..N Jira；数据库不要建立 finding_id UNIQUE。</li>
-    <li>Jira 创建策略可配置为 AUTO / REVIEW_REQUIRED / DISABLED。</li>
+    <li>Finding 类型为 FRONTEND、BACKEND 或 INTEGRATION；它描述问题性质，不决定是否修改代码。</li>
+    <li>一个 Finding 当前只绑定一个主要 Repository，是一次独立 Auto Fix 的最小审查单元。</li>
+    <li>跨仓库问题拆成多个 Finding；其他 Repository 可以出现在 Context/Evidence 中，但不在一次 Fix Attempt 中做多仓库原子修改。</li>
+    <li>同一 Finding 可多次发起 Fix Attempt；每次使用新的 Idempotency-Key，并允许用户提供新的 instructions，不覆盖历史诊断和历史尝试。</li>
+    <li>Auto Fix 创建时直接记录 MANUAL + APPROVED + approvedBy，表示用户点击即完成本次人工授权。</li>
   </ul>
 </section>
 
 <section id="jira" class="section">
-  <div class="section-title"><div class="num">13</div><div><h2>Jira 集成</h2><p class="section-intro">Jira 是研发交付适配器，不是诊断核心。Jira 项目可从 Finding 的 application/service registry 自动解析。</p></div></div>
+  <div class="section-title"><div class="num">13</div><div><h2>Jira 集成（后续）</h2><p class="section-intro">Jira 暂不进入 POC 主流程。未来作为研发管理适配器按 Finding 路由，不影响当前诊断与 PR 创建链路。</p></div></div>
   <table>
     <thead><tr><th>Jira 字段</th><th>来源</th></tr></thead>
     <tbody>
@@ -1265,21 +1263,26 @@ error_message</code></pre>
 </section>
 
 <section id="api" class="section">
-  <div class="section-title"><div class="num">14</div><div><h2>REST API 设计</h2><p class="section-intro">所有核心读取 API 以 caseKey 为主键；内部数据库 ID 不暴露给调用方。</p></div></div>
+  <div class="section-title"><div class="num">14</div><div><h2>REST API 设计</h2><p class="section-intro">Case 使用公开 caseKey；Finding、Run 和 Artifact 使用 UUID。除统计故障接口和健康检查外，当前 POC 均使用 Ingest Token 限定 Project Scope。</p></div></div>
   <table>
     <thead><tr><th>Method</th><th>Path</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td>POST</td><td><code>/api/v1/cases</code></td><td>接收 Context，返回 202 + caseKey</td></tr>
-      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}</code></td><td>Case 主信息与总状态</td></tr>
-      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/context</code></td><td>标准化 Context Event，可按 type/time 分页</td></tr>
-      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/evidence</code></td><td>日志/源码/映射 Evidence</td></tr>
-      <tr><td>POST</td><td><code>/api/v1/cases/{caseKey}/diagnosis-runs</code></td><td>触发或重跑诊断</td></tr>
-      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/diagnosis-runs</code></td><td>查看诊断历史</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/plugin/issues</code></td><td>插件提交现场，返回 202 + caseKey；不再接收 issueType</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/public/statistics</code></td><td>POC 固定 500 故障入口；完成 Auto Fix 后应恢复 200</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases?page=0&amp;size=20</code></td><td>Project Scope 的分页 Case 列表；用户维度待 SSO 接入</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}</code></td><td>Case、latestRun、latestJob 和当前 Findings/Fix 摘要</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/events</code></td><td>标准化 Context Event</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/runs</code></td><td>诊断和修复 Run 历史</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/runs/{runId}</code></td><td>单次 Run 的 Context、Provider 请求/响应和结构化结果</td></tr>
       <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/findings</code></td><td>查看所有 Finding</td></tr>
-      <tr><td>POST</td><td><code>/api/v1/findings/{findingKey}/jira</code></td><td>为单个 Finding 创建 Jira</td></tr>
-      <tr><td>GET</td><td><code>/api/v1/groups/{groupKey}/stats</code></td><td>未来 Group 统计入口</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/evidence</code></td><td>查看映射、源码等 Evidence</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/artifacts</code></td><td>查看 Screenshot / Replay 元数据</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/cases/{caseKey}/artifacts/{artifactId}/content</code></td><td>读取数据库内 Artifact 内容</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/cases/{caseKey}/findings/{findingId}/auto-fix</code></td><td>人工触发 Finding Auto Fix，返回 202 + fixAttemptId/runId</td></tr>
     </tbody>
   </table>
+
+  <div class="note"><b>状态查询：</b>当前没有独立的 <code>GET .../fix-attempts/{id}</code> Controller；前端通过 Case 详情、Findings 和 Runs 查询最新修复状态。需要独立轮询 Fix Attempt 时再补充专用只读接口。</div>
 
   <h3>14.1 创建 Case Response</h3>
   <pre><code>HTTP/1.1 202 Accepted
@@ -1295,6 +1298,8 @@ error_message</code></pre>
 <section id="state" class="section">
   <div class="section-title"><div class="num">15</div><div><h2>状态机与异步任务</h2><p class="section-intro">外部系统调用必须异步；状态可观测、可重试、可部分失败。</p></div></div>
 
+  <div class="highlight"><b>当前语义：</b>Case 表示整体展示状态；真正的执行状态以 <code>diagnosis_run</code>、<code>diagnosis_job</code> 和 <code>finding_fix_attempt</code> 为准。DIAGNOSE 与 IMPLEMENT_CHANGE 不能合并，否则无法区分只读分析和有副作用的改代码权限边界。</div>
+
   <div class="diagram">
     <div class="diagram-title">图 9 · Case 状态机</div>
     <svg viewBox="0 0 1180 290" width="100%">
@@ -1305,8 +1310,8 @@ error_message</code></pre>
         <g><rect x="350" y="100" width="140" height="60" rx="14" fill="#f4f0ff" stroke="#b9adff"/><text x="420" y="136" fill="#44379b" font-weight="700">ENRICHING</text></g>
         <g><rect x="530" y="100" width="140" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="600" y="136" fill="#8a5a00" font-weight="700">ANALYZING</text></g>
         <g><rect x="710" y="100" width="140" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="780" y="136" fill="#176b55" font-weight="700">DIAGNOSED</text></g>
-        <g><rect x="890" y="100" width="120" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="950" y="136" fill="#8a5a00" font-weight="700">JIRA</text></g>
-        <g><rect x="1050" y="100" width="100" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="1100" y="136" fill="#176b55" font-weight="700">DONE</text></g>
+        <g><rect x="890" y="100" width="120" height="60" rx="14" fill="#fff4e5" stroke="#efc16d"/><text x="950" y="136" fill="#8a5a00" font-weight="700">AUTO FIX</text></g>
+        <g><rect x="1050" y="100" width="100" height="60" rx="14" fill="#e9f8f3" stroke="#9bd6c5"/><text x="1100" y="136" fill="#176b55" font-weight="700">PR</text></g>
       </g>
       <g stroke="#7b879f" stroke-width="2">
         <line x1="150" y1="130" x2="190" y2="130"/><line x1="310" y1="130" x2="350" y2="130"/><line x1="490" y1="130" x2="530" y2="130"/>
@@ -1332,16 +1337,17 @@ LIMIT 20;</code></pre>
     <thead><tr><th>Job Type</th><th>用途</th><th>默认重试</th></tr></thead>
     <tbody>
       <tr><td>PARSE_CONTEXT</td><td>Context 标准化</td><td>2</td></tr>
-      <tr><td>ENRICH_LOG</td><td>Elastic 日志查询</td><td>3 + backoff</td></tr>
-      <tr><td>RESOLVE_SOURCE</td><td>Bitbucket 源码补全</td><td>3</td></tr>
-      <tr><td>AI_DIAGNOSIS</td><td>Devin Session</td><td>2，需幂等</td></tr>
-      <tr><td>CREATE_JIRA</td><td>创建 Jira</td><td>3，必须使用幂等键/查重</td></tr>
+      <tr><td>START_DEVIN</td><td>按 Run.mode 创建 Devin v3 Session</td><td>受并发容量与提交不确定性保护</td></tr>
+      <tr><td>POLL_DEVIN</td><td>轮询 Session，并解析 complete Structured Output</td><td>按配置间隔直到 deadline</td></tr>
+      <tr><td>STOP_DEVIN</td><td>结果落库后终止/归档 Session</td><td>失败时记录 MANUAL_ACTION_REQUIRED</td></tr>
     </tbody>
   </table>
+
+  <p>Devin 顶层状态仍为 <code>running</code> 时也可能已经返回 <code>structured_output.complete=true</code>。当前 Worker 以完整且通过 Schema/业务校验的 Structured Output 为完成依据，先落库 Run/Finding 或 Fix Result，再调度 STOP_DEVIN。</p>
 </section>
 
 <section id="group" class="section">
-  <div class="section-title"><div class="num">16</div><div><h2>Group、权限与 Capability 预留</h2><p class="section-intro">MVP 可只配置一个默认 Group，但所有 Case 必须从第一天具备 group_id / organization_id，避免平台化时重构主数据。</p></div></div>
+  <div class="section-title"><div class="num">16</div><div><h2>Group、权限与 Capability 预留</h2><p class="section-intro">当前 POC 已通过 Organization / Group / Project 外键隔离数据，但登录用户归属与 RBAC 尚未启用。</p></div></div>
 
   <div class="grid grid-3">
     <div class="card"><h3>Group</h3><p class="small">团队级数据隔离、统计、默认 Jira Project、默认 Diagnosis Provider。</p></div>
@@ -1351,10 +1357,13 @@ LIMIT 20;</code></pre>
 
   <h3>16.1 关系</h3>
   <pre><code>Organization 1 ── N Group
-Group N ── M Application
-Group N ── M User
-Group 1 ── 1 CapabilityProfile (可演进为版本化)
-Case N ── 1 Group</code></pre>
+Group 1 ── N Project
+Project 1 ── N Application
+Project 1 ── N IngestionToken
+Project 1 ── N Case
+Application 1 ── N Endpoint / Repository</code></pre>
+
+  <p>后续接入 Google SSO 后，<code>created_by_user_id</code> 从认证 Principal 写入，客户端不能在 Body 中指定。普通用户查询自己创建的 Case；Group Admin 和 Project Maintainer 再按授权范围扩展。邮件白名单作为第一阶段准入策略。</p>
 
   <div class="note">银行内部工具不建议使用“Subscription Plan”语义，推荐命名 <b>Capability Profile</b>，避免产品语义偏 SaaS 商业化。</div>
 </section>
@@ -1444,8 +1453,10 @@ CREATE INDEX idx_job_pending
     <tbody>
       <tr><td>Request/Response 含敏感字段</td><td>白名单字段采集 + Server-side Masking + 大 Body 截断</td></tr>
       <tr><td>Authorization / Cookie / Token</td><td>进入数据库前强制删除，不交给 AI</td></tr>
+      <tr><td>POC API 鉴权</td><td><code>Authorization: Ingest &lt;token&gt;</code>；服务端只保存 SHA-256 Hash，并从 Token 解析 Project Scope</td></tr>
+      <tr><td>Chrome 插件 CORS</td><td>只允许 <code>chrome-extension://ikbbilafgkgcndjaacmlcmpmiofiibii</code>；插件 manifest 同时声明 <code>https://api.aisherlock.vip/*</code></td></tr>
       <tr><td>源码外发</td><td>Provider Policy；只发送候选代码窗口，支持“Devin 直接 Repo”与“Java 预取并脱敏”两种模式</td></tr>
-      <tr><td>跨 Group 数据访问</td><td>所有 Case 查询强制 organization/group scope；后期接 RBAC</td></tr>
+      <tr><td>跨 Project 数据访问</td><td>当前所有 Case 查询强制 Token Project Scope；后期由 Google SSO Principal + RBAC 替代</td></tr>
       <tr><td>审计</td><td>记录谁查询了 Case、谁触发 AI、谁创建 Jira、外部 Provider 请求 ID</td></tr>
       <tr><td>Retention</td><td>Context / Evidence / 原始附件按 Group Capability Profile 配置保留期</td></tr>
     </tbody>
@@ -1453,10 +1464,25 @@ CREATE INDEX idx_job_pending
 </section>
 
 <section id="deployment" class="section">
-  <div class="section-title"><div class="num">20</div><div><h2>部署与演进路线</h2><p class="section-intro">结合现有 Jenkins + OpenShift 技术栈，第一版保持单体部署、无额外 MQ 依赖。</p></div></div>
+  <div class="section-title"><div class="num">20</div><div><h2>部署与演进路线</h2><p class="section-intro">当前外网 POC 部署在 Alibaba Cloud Linux，服务器只安装 Docker Engine/Compose；Java、Maven、PostgreSQL 均在容器内。</p></div></div>
+
+  <h3>20.1 当前 POC 拓扑</h3>
+  <pre><code>GitHub main push
+  → GitHub Actions: rsync source over SSH
+  → docker compose up -d --build postgres backend
+  → PostgreSQL 17 + Flyway V1..V7
+  → Spring Boot :8080 bound to 127.0.0.1:8080
+  → Host Caddy: api.aisherlock.vip → 127.0.0.1:8080
+  → Health Check: /actuator/health
+
+DBeaver → SSH Tunnel → server 127.0.0.1:5433 → PostgreSQL container :5432</code></pre>
+
+  <p>数据库和应用端口只绑定服务器 Loopback，不在云安全组开放 5432/5433/8080。公网只开放 80/443 和受控 SSH 端口。配置保存在服务器 <code>.env.server</code>，不会由 Actions 上传或覆盖。</p>
+
+  <h3>20.2 企业内网目标态</h3>
 
   <div class="diagram">
-    <div class="diagram-title">图 10 · OpenShift 部署拓扑</div>
+    <div class="diagram-title">图 10 · 未来 OpenShift 部署拓扑（当前未实施）</div>
     <svg viewBox="0 0 1160 480" width="100%">
       <rect width="1160" height="480" rx="18" fill="#fbfcff"/>
       <rect x="45" y="55" width="1070" height="350" rx="24" fill="#fff" stroke="#cbd3e1"/>
@@ -1490,7 +1516,7 @@ CREATE INDEX idx_job_pending
     </svg>
   </div>
 
-  <h3>20.1 未来微服务拆分</h3>
+  <h3>20.3 未来微服务拆分</h3>
   <pre><code>v1  Modular Monolith
         │
         ├── Case + Context + Evidence
@@ -1507,28 +1533,27 @@ v2  当规模 / 团队边界真的需要时
 </section>
 
 <section id="mvp" class="section">
-  <div class="section-title"><div class="num">21</div><div><h2>Hackathon MVP 范围与开发拆分</h2><p class="section-intro">MVP 只证明一条高价值闭环：前端现场 → 后端 500 → 日志 → 源码 → Devin → Finding → Jira。</p></div></div>
+  <div class="section-title"><div class="num">21</div><div><h2>外网 POC 范围与下一步</h2><p class="section-intro">当前 POC 证明一条可产生真实代码修改的闭环：插件现场 → 固定后端 500 → Devin 诊断 → Finding → 人工 Auto Fix → Pull Request。</p></div></div>
 
   <h3>21.1 必须做</h3>
   <div class="grid grid-2">
     <div class="card">
       <h3>Core Backend</h3>
       <ul>
-        <li>POST /cases + 202 caseKey</li>
-        <li>diagnosis_case / context_event / evidence / run / finding / jira / job 表</li>
-        <li>Network / Console / Error Parser</li>
-        <li>Case 查询、Context 查询、Finding 查询</li>
+        <li>Plugin Issue + 202 caseKey</li>
+        <li>Case 分页、详情、Events、Runs、Evidence、Findings 和 Artifacts 查询</li>
+        <li>Network / Console / Error / Page Parser 与敏感信息清理</li>
+        <li>Screenshot / Replay 数据库存储及对象存储抽象</li>
       </ul>
     </div>
     <div class="card">
       <h3>Diagnosis Chain</h3>
       <ul>
-        <li>URL → service_registry</li>
-        <li>Elastic 查询错误日志</li>
-        <li>Bitbucket 获取候选源文件</li>
+        <li>URL → application_endpoint → application_repository</li>
+        <li>GitHub 仓库授权范围</li>
         <li>Devin structured diagnosis</li>
-        <li>一个 Case 至少支持 2 个 Finding</li>
-        <li>按 Finding 自动创建多个 Jira</li>
+        <li>一个 Case 支持 0..N Finding</li>
+        <li>按单 Finding 人工触发 Auto Fix 和 PR</li>
       </ul>
     </div>
   </div>
@@ -1542,7 +1567,10 @@ v2  当规模 / 团队边界真的需要时
     <li>复杂数据库分库分表</li>
     <li>完整 Code Semantic Index</li>
     <li>完整 Distributed Trace Reconstruction</li>
-    <li>自动生成并合并代码 Patch</li>
+    <li>Elastic 日志查询</li>
+    <li>Jira 创建</li>
+    <li>自动批准、自动合并或多仓库原子 PR</li>
+    <li>正式 Google SSO / RBAC 用户流程</li>
   </ul>
 
   <h3>21.3 推荐任务拆分</h3>
@@ -1551,15 +1579,15 @@ v2  当规模 / 团队边界真的需要时
     <tbody>
       <tr><td>A · Case / DB</td><td>DDL、Entity/Repository、Ingestion API、查询 API</td></tr>
       <tr><td>B · Parser</td><td>Parser Registry、Network/Console/Error、Normalizer</td></tr>
-      <tr><td>C · Evidence</td><td>Service Registry、Elastic Adapter、Bitbucket Adapter</td></tr>
-      <tr><td>D · AI</td><td>DiagnosisContextBuilder、Devin Provider、Finding Parser</td></tr>
-      <tr><td>E · Jira / Orchestration</td><td>Job Worker、Retry、Jira Adapter、状态机</td></tr>
+      <tr><td>C · Mapping / Evidence</td><td>ApplicationResolver、Endpoint/Repository Mapping、Artifact/Evidence</td></tr>
+      <tr><td>D · AI</td><td>DiagnosisContextBuilder、Devin v3 Provider、Finding Validator</td></tr>
+      <tr><td>E · Auto Fix / Orchestration</td><td>Finding Fix Attempt、Job Worker、Retry、PR Result Validator</td></tr>
     </tbody>
   </table>
 
   <div class="success">
     <b>Demo North Star：</b>输入一个真实问题 Case 后，系统无需开发手工抓日志或搜索仓库，即可输出：
-    <code>Frontend Finding + Backend Finding + Evidence Chain + 多 Jira Ticket</code>。
+    <code>Validated Finding + Evidence References + User-triggered Pull Request</code>。
   </div>
 </section>
 
@@ -1570,20 +1598,21 @@ v2  当规模 / 团队边界真的需要时
     <tbody>
       <tr><td>架构形态</td><td>Modular Monolith</td><td>Hackathon 可快速落地，同时保留未来 MS 边界。</td></tr>
       <tr><td>主数据对象</td><td>Diagnosis Case</td><td>避免与 Jira Issue 混淆，并可承载多个 Finding。</td></tr>
-      <tr><td>AI 输出对象</td><td>Finding 1:N</td><td>一次现场可能同时存在多个前后端问题。</td></tr>
-      <tr><td>Jira 关系</td><td>Finding 1:N Jira</td><td>支持多责任域、不同 Jira Project。</td></tr>
+      <tr><td>AI 输出对象</td><td>Finding 0:N</td><td>证据不足时允许为空；证据充分时一次现场可有多个问题。</td></tr>
+      <tr><td>修复单元</td><td>单 Finding / 单主仓库 / 多次 Fix Attempt</td><td>保留历史，控制副作用与审查范围。</td></tr>
+      <tr><td>Run 模式</td><td>DIAGNOSE / IMPLEMENT_CHANGE</td><td>显式区分只读分析和改代码权限。</td></tr>
       <tr><td>Context 存储</td><td>统一 context_event</td><td>类型可扩展，主查询模型简单。</td></tr>
       <tr><td>Schema</td><td>Relation + JSONB</td><td>兼顾查询性能与上下文扩展。</td></tr>
-      <tr><td>日志接口</td><td>LogSearchClient / 优先 Elasticsearch</td><td>避免绑定 Kibana UI 实现。</td></tr>
+      <tr><td>日志接口</td><td>预留 LogSearchClient</td><td>POC 不依赖 Elastic，后续避免绑定 Kibana UI。</td></tr>
       <tr><td>AI Provider</td><td>DiagnosisProvider abstraction</td><td>Devin 可替换。</td></tr>
       <tr><td>异步</td><td>PostgreSQL Job Queue</td><td>MVP 避免 MQ，引入最少基础设施。</td></tr>
-      <tr><td>Group</td><td>表与 FK 先设计，功能后实现</td><td>保证未来权限和统计扩展不重构 Case。</td></tr>
+      <tr><td>身份</td><td>当前 Project Ingest Token；未来 Google SSO</td><td>先打通 POC，再切换为用户级 Case 权限。</td></tr>
     </tbody>
   </table>
 </section>
 
 <div class="footer">
-  AI Sherlock · Backend Technical Design · V1.2 · 2026-08-30
+  AI Sherlock · Backend Technical Design · V1.3 · 2026-09-06 · Implementation Aligned
 </div>
 
 </div>
