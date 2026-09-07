@@ -83,8 +83,29 @@ pnpm build
 `.github/workflows/build.yml` 在代码合并或直接推送到 `main` 后自动构建，
 也可在 GitHub Actions 的 **Frontend Build → Run workflow** 手动触发。
 构建包含两个 Web 应用的 TypeScript 检查，产物分别为 `landing-page/dist/`
-和 `admin-page/dist/`，可在运行页面下载，保留 7 天。此流程不部署站点，
-也不构建使用独立 Bun 配置的 `extension`。
+和 `admin-page/dist/`，可在运行页面下载，保留 7 天；配置部署 Secret 后还会
+同步到 Nginx。此流程不构建使用独立 Bun 配置的 `extension`。
+
+### Nginx 部署
+
+工作流构建成功后会把 `landing-page/dist/` 同步到
+`${DEPLOY_PATH}/landing-page/`，把 `admin-page/dist/` 同步到
+`${DEPLOY_PATH}/admin-page/`，再通过 SSH/rsync
+同步到 Nginx 服务器。运行前在 GitHub 仓库的 **Settings → Secrets and
+variables → Actions → Secrets** 添加：
+
+| Secret | 内容 |
+| --- | --- |
+| `DEPLOY_HOST` | 服务器 IP 或域名 |
+| `DEPLOY_USER` | 可 SSH 登录且能写网站目录的用户 |
+| `DEPLOY_PATH` | 部署根目录，目前为 `/var/www/ai-sherlock` |
+| `DEPLOY_SSH_KEY` | 该用户对应的 SSH 私钥（完整多行内容） |
+
+服务器上只需将部署公钥加入该用户的 `~/.ssh/authorized_keys`；工作流会
+自动创建上述两个目录。当前环境的 `DEPLOY_PATH` 填写
+`/var/www/ai-sherlock`。首次配置时应先手动确认服务器指纹，工作流会使用
+`ssh-keyscan` 写入临时 runner 的 `known_hosts`。两个 `rsync --delete`
+会分别让对应目录与本次构建完全一致，不会清理 `DEPLOY_PATH` 下的其他目录。
 
 CI 默认按官网 `/`、中台 `/admin/`、API `/api/v1` 构建。在仓库
 **Settings → Secrets and variables → Actions → Variables** 可配置

@@ -37,6 +37,25 @@ jobs:
           VITE_DOCS_URL: ${{ vars.VITE_DOCS_URL }}
           VITE_CHROME_STORE_URL: ${{ vars.VITE_CHROME_STORE_URL }}
 
+      - name: Deploy to Nginx server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          test -n "$DEPLOY_HOST" || { echo "Missing DEPLOY_HOST secret"; exit 1; }
+          test -n "$DEPLOY_USER" || { echo "Missing DEPLOY_USER secret"; exit 1; }
+          test -n "$DEPLOY_SSH_KEY" || { echo "Missing DEPLOY_SSH_KEY secret"; exit 1; }
+          test -n "$DEPLOY_PATH" || { echo "Missing DEPLOY_PATH secret"; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/landing-page' '$DEPLOY_PATH/admin-page'"
+          rsync -az --delete landing-page/dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/landing-page/"
+          rsync -az --delete admin-page/dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/admin-page/"
+
       - name: Upload landing page
         uses: actions/upload-artifact@v4
         with:
