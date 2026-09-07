@@ -12,7 +12,7 @@ export default defineConfig({
     name: 'AI Sherlock',
     description:
       'Report issues with annotated screenshots, recording and automatic Network / Console / error-stack evidence',
-    permissions: ['sidePanel', 'activeTab', 'tabs', 'storage'],
+    permissions: ['sidePanel', 'activeTab', 'tabs', 'storage', 'alarms'],
     // <all_urls>：captureVisibleTab 截取任意页面必须；activeTab 授权只在点击图标那一刻
     // 对当前标签页生效，切 tab / 页面跳转后即失效。后端 API 访问也在此声明。
     host_permissions: ['https://api.aisherlock.vip/*', '<all_urls>'],

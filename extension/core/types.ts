@@ -154,3 +154,18 @@ export interface IssuePackage {
     assembledAt: string;
   };
 }
+
+// 待验证（JIRA 业务态，见 docs/issue-status-standard.md §3.7）。
+// 后端枚举尚未定稿，先覆盖常见候选命名，后端对齐后收敛为正式值。
+const PENDING_VERIFY_STATUSES = [
+  'PENDING_VERIFICATION',
+  'PENDING_VERIFY',
+  'READY_FOR_VERIFICATION',
+  'WAITING_VERIFICATION',
+  'TO_BE_VERIFIED',
+];
+
+export function isPendingVerifyStatus(status?: string): boolean {
+  const s = status?.toUpperCase() ?? '';
+  return PENDING_VERIFY_STATUSES.includes(s);
+}

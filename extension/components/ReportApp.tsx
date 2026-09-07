@@ -149,9 +149,6 @@ export default function ReportApp() {
                         {report.expectedResult}
                       </Descriptions.Item>
                     )}
-                    <Descriptions.Item label="Severity">
-                      {report.severity ?? '-'}
-                    </Descriptions.Item>
                     <Descriptions.Item label="Status">
                       {report.status ? (
                         <Tag color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? 'green' : 'default'}>
@@ -341,7 +338,7 @@ export default function ReportApp() {
           },
           {
             key: 'root-cause',
-            label: `Root Cause(${report.diagnosis?.findings.length ?? 0})`,
+            label: `Root Cause(${rootCauseCount(report.diagnosis)})`,
             children: report.diagnosis ? (
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
                 {report.diagnosis.findings.map((f) => (
@@ -370,14 +367,22 @@ export default function ReportApp() {
                   >
                     {f.rootCause && (
                       <div style={{ marginBottom: f.recommendedFix ? 8 : 0 }}>
-                        <b>Root cause: </b>
-                        {f.rootCause}
+                        <b>Root cause</b>
+                        {splitSentences(f.rootCause).map((s, i) => (
+                          <div key={i} style={{ wordBreak: 'break-word' }}>
+                            {s}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {f.recommendedFix && (
                       <div>
-                        <b>Recommended fix: </b>
-                        {f.recommendedFix}
+                        <b>Recommended fix</b>
+                        {splitSentences(f.recommendedFix).map((s, i) => (
+                          <div key={i} style={{ wordBreak: 'break-word' }}>
+                            {s}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {f.file && (
@@ -423,6 +428,13 @@ export default function ReportApp() {
       />
     </div>
   );
+}
+
+/** 有 findings 按 findings 计数；没有但分析有总结文本也算 1 条结果 */
+function rootCauseCount(d: IssuePackage['diagnosis']): number {
+  if (!d) return 0;
+  if (d.findings.length > 0) return d.findings.length;
+  return d.caseSummary ? 1 : 0;
 }
 
 /** 按句子边界拆分诊断文本，避免长文挤成一坨 */
