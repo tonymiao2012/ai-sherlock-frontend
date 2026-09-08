@@ -9,7 +9,9 @@ import {
   Tabs,
   Tag,
   Typography,
+  message,
 } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
 import { loadCase, loadReport } from '../core/db';
 import { BRAND_LOGO_URL } from './BrandLogo';
 import type { IssuePackage } from '../core/types';
@@ -113,7 +115,17 @@ export default function ReportApp() {
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock Report</span>
         </div>
-        <span className="sh-pill sh-pill--brand">{report.issueId}</span>
+        <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {report.caseKey ?? report.issueId}
+          <CopyOutlined
+            style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
+            onClick={() => {
+              navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
+                message.success('Copied');
+              });
+            }}
+          />
+        </span>
       </header>
 
       <Tabs
@@ -430,8 +442,7 @@ export default function ReportApp() {
 /** 有 findings 按 findings 计数；没有但分析有总结文本也算 1 条结果 */
 function rootCauseCount(d: IssuePackage['diagnosis']): number {
   if (!d) return 0;
-  if (d.findings.length > 0) return d.findings.length;
-  return d.caseSummary ? 1 : 0;
+  return d.findings.length;
 }
 
 /** 按句子边界拆分诊断文本，避免长文挤成一坨 */

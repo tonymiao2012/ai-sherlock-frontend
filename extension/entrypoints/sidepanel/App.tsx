@@ -8,6 +8,7 @@ import {
   CheckCircleFilled,
   CheckOutlined,
   CloseOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   SendOutlined,
@@ -70,6 +71,7 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
                 if (existing.windowId) {
                   await chrome.windows.update(existing.windowId, { focused: true });
                 }
+                await chrome.tabs.reload(existing.id);
               } else {
                 chrome.tabs.create({ url: reportUrl });
               }
@@ -93,7 +95,20 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
           >
             <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{c.title || 'Untitled'}</div>
             <div style={{ fontSize: 12, color: '#666', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: 'monospace' }}>{c.caseKey ?? c.issueId}</span>
+              <span style={{ fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {c.caseKey ?? c.issueId}
+                {(c.caseKey || c.issueId) && (
+                  <CopyOutlined
+                    style={{ cursor: 'pointer', color: '#999' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(c.caseKey ?? c.issueId).then(() => {
+                        message.success('Copied');
+                      });
+                    }}
+                  />
+                )}
+              </span>
               <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
               <Tag color={statusColor(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
             </div>

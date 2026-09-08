@@ -26,7 +26,9 @@ export default function ReplayPlayer({ events }: Props) {
       },
     });
     return () => {
-      containerRef.current!.innerHTML = '';
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
       playerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -192,17 +192,19 @@ async function fetchCasesList(): Promise<{
     const localKeys = new Set(
       localCases.map((c) => c.caseKey).filter(Boolean) as string[]
     );
-    const merged = localCases.map((c) => {
-      const remote = c.caseKey ? remoteMap.get(c.caseKey) : undefined;
-      if (remote) {
-        return {
-          ...c,
-          status: remote.status ?? c.status,
-          title: remote.title || c.title,
-        };
-      }
-      return c;
-    });
+    const merged = localCases
+      .filter((c) => !c.caseKey || remoteMap.has(c.caseKey))
+      .map((c) => {
+        const remote = c.caseKey ? remoteMap.get(c.caseKey) : undefined;
+        if (remote) {
+          return {
+            ...c,
+            status: remote.status ?? c.status,
+            title: remote.title || c.title,
+          };
+        }
+        return c;
+      });
     // 后端有、本地没有的 Case（清库/多端提交）：补骨架记录，点开时由详情接口补全
     for (const item of data.items ?? []) {
       if (!item.caseKey || localKeys.has(item.caseKey)) continue;
