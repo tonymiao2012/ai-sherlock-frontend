@@ -492,7 +492,7 @@ Idempotency-Key: &lt;stable unique value&gt; // 可选但强烈推荐</code></pr
   "network": [{
     "eventTime": "2026-09-06T13:41:32.422Z",
     "method": "GET",
-    "url": "https://api.aisherlock.vip/api/v1/public/statistics",
+    "url": "https://www.aisherlock.vip/api/v1/public/statistics",
     "status": 500,
     "responseSummary": {}
   }],
@@ -873,7 +873,7 @@ source_system            // ELASTIC / BITBUCKET / SOURCEMAP / MAPPING</code></pr
 <section id="source" class="section">
   <div class="section-title"><div class="num">10</div><div><h2>Application / Endpoint / Repository 映射</h2><p class="section-intro">当前 POC 使用 GitHub。URL 定位和仓库授权是两层独立配置，避免把可查询字段与 Provider 配置塞进单个 JSON Registry。</p></div></div>
 
-  <div class="highlight"><b>当前示例：</b> <code>poc + api.aisherlock.vip + /api → ai-sherlock-api → tonymiao2012/ms-ai-sherlock@main → Devin 受限检索</code></div>
+  <div class="highlight"><b>当前示例：</b> <code>poc + www.aisherlock.vip + /api → ai-sherlock-api → tonymiao2012/ms-ai-sherlock@main → Devin 受限检索</code></div>
 
   <h3>10.1 当前物理模型</h3>
   <pre><code>application
@@ -1035,7 +1035,7 @@ Content-Type: application/json</code></pre>
       "type": "NETWORK",
       "sequence": 1,
       "failure": true,
-      "payload": {"url": "https://api.aisherlock.vip/api/v1/public/statistics", "status": 500}
+      "payload": {"url": "https://www.aisherlock.vip/api/v1/public/statistics", "status": 500}
     }
   ],
   "omittedEvents": 0,
@@ -1454,7 +1454,7 @@ CREATE INDEX idx_job_pending
       <tr><td>Request/Response 含敏感字段</td><td>白名单字段采集 + Server-side Masking + 大 Body 截断</td></tr>
       <tr><td>Authorization / Cookie / Token</td><td>进入数据库前强制删除，不交给 AI</td></tr>
       <tr><td>POC API 鉴权</td><td><code>Authorization: Ingest &lt;token&gt;</code>；服务端只保存 SHA-256 Hash，并从 Token 解析 Project Scope</td></tr>
-      <tr><td>Chrome 插件 CORS</td><td>只允许 <code>chrome-extension://ikbbilafgkgcndjaacmlcmpmiofiibii</code>；插件 manifest 同时声明 <code>https://api.aisherlock.vip/*</code></td></tr>
+      <tr><td>Chrome 插件 CORS</td><td>只允许 <code>chrome-extension://ikbbilafgkgcndjaacmlcmpmiofiibii</code>；插件 manifest 同时声明 <code>https://www.aisherlock.vip/*</code></td></tr>
       <tr><td>源码外发</td><td>Provider Policy；只发送候选代码窗口，支持“Devin 直接 Repo”与“Java 预取并脱敏”两种模式</td></tr>
       <tr><td>跨 Project 数据访问</td><td>当前所有 Case 查询强制 Token Project Scope；后期由 Google SSO Principal + RBAC 替代</td></tr>
       <tr><td>审计</td><td>记录谁查询了 Case、谁触发 AI、谁创建 Jira、外部 Provider 请求 ID</td></tr>
@@ -1472,7 +1472,7 @@ CREATE INDEX idx_job_pending
   → docker compose up -d --build postgres backend
   → PostgreSQL 17 + Flyway V1..V7
   → Spring Boot :8080 bound to 127.0.0.1:8080
-  → Host Caddy: api.aisherlock.vip → 127.0.0.1:8080
+  → Host Caddy: www.aisherlock.vip → 127.0.0.1:8080
   → Health Check: /actuator/health
 
 DBeaver → SSH Tunnel → server 127.0.0.1:5433 → PostgreSQL container :5432</code></pre>

@@ -63,9 +63,16 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
               if (c.caseKey) {
                 await sendRuntime({ type: 'fetch-case-detail', caseKey: c.caseKey });
               }
-              chrome.tabs.create({
-                url: chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`),
-              });
+              const reportUrl = chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`);
+              const [existing] = await chrome.tabs.query({ url: reportUrl });
+              if (existing?.id) {
+                await chrome.tabs.update(existing.id, { active: true });
+                if (existing.windowId) {
+                  await chrome.windows.update(existing.windowId, { focused: true });
+                }
+              } else {
+                chrome.tabs.create({ url: reportUrl });
+              }
             }}
             style={{
               padding: 16,
@@ -383,7 +390,7 @@ export default function App() {
   return (
     <div className="editor-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* 品牌头 + Tab：Logo 与 Tab 垂直居中；Tab 轨道贴右、底部与内容区相连 */}
-      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
+      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0 0' }}>
         <div className="sh-brand">
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock</span>

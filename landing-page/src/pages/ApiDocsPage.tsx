@@ -211,7 +211,7 @@ export function ApiDocsPage() {
               headers={['环境', 'Base URL']}
               rows={[
                 ['本地', 'http://localhost:8080'],
-                ['外网 POC', 'https://api.aisherlock.vip'],
+                ['外网 POC', 'https://www.aisherlock.vip'],
               ]}
             />
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginTop: '24px', marginBottom: '12px' }}>
@@ -381,7 +381,7 @@ Idempotency-Key: iss-statistics-500-001`}</CodeBlock>
     {
       "eventTime": "2026-09-06T02:00:00Z",
       "method": "GET",
-      "url": "https://api.aisherlock.vip/api/v1/public/statistics",
+      "url": "https://www.aisherlock.vip/api/v1/public/statistics",
       "status": 500,
       "durationMs": 86,
       "traceId": "statistics-trace-001",

@@ -16,7 +16,7 @@ const OUTPUT = join(EXT_DIR, '.output/chrome-mv3');
 const PROFILE = join(EXT_DIR, '.output/preview-profile');
 const TEST_PAGE_DIR = join(EXT_DIR, '..', 'test-page');
 const PAGE_PORT = Number(process.env.PAGE_PORT ?? 8766);
-const PAGE_URL = `http://localhost:${PAGE_PORT}/index.html`;
+const DEV_URL = process.env.DEV_URL ?? 'http://www.aisherlock.vip/';
 const NO_BUILD = process.argv.includes('--no-build');
 
 const portOpen = (port) =>
@@ -116,7 +116,7 @@ console.log(`✔ AI Sherlock 已加载  chrome-extension://${id}/`);
 
 const tab = await client.newTab('about:blank');
 await client.send('Page.enable', {}, tab.sessionId);
-await client.send('Page.navigate', { url: PAGE_URL }, tab.sessionId);
+await client.send('Page.navigate', { url: DEV_URL }, tab.sessionId);
 await delay(1500);
 const check = await client.eval(tab.sessionId, SELF_CHECK);
 if (check.error) console.log('⚠ 自检异常：', check.error);
@@ -127,7 +127,7 @@ else
       : `✔ 注入正常，证据采集在跑  ${JSON.stringify(check.value)}`
   );
 
-console.log(`\n测试页 ${PAGE_URL}`);
+console.log(`\n开发页 ${DEV_URL}`);
 console.log('改完源码重新跑 bun run preview；已打开的页面需刷新才会重新注入内容脚本');
 console.log('Ctrl-C 关闭这个 Chrome');
 

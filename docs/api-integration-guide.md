@@ -35,7 +35,7 @@ POC 使用项目 Ingest Token（正式环境先 Google SSO 登录）
 | 环境 | Base URL |
 |---|---|
 | 本地 | `http://localhost:8080` |
-| 外网 POC | `https://api.aisherlock.vip` |
+| 外网 POC | `https://www.aisherlock.vip` |
 
 接口状态：
 
@@ -220,7 +220,7 @@ POC 阶段截图二进制存 PostgreSQL `BYTEA`，后续迁移到对象存储。
     {
       "eventTime": "2026-09-06T02:00:00Z",
       "method": "GET",
-      "url": "https://api.aisherlock.vip/api/v1/public/statistics",
+      "url": "https://www.aisherlock.vip/api/v1/public/statistics",
       "status": 500,
       "durationMs": 86,
       "traceId": "statistics-trace-001",
@@ -625,7 +625,7 @@ SHERLOCK_ALLOWED_ORIGIN_PATTERNS=chrome-extension://ikbbilafgkgcndjaacmlcmpmiofi
 
 ```json
 {
-  "host_permissions": ["https://api.aisherlock.vip/*"]
+  "host_permissions": ["https://www.aisherlock.vip/*"]
 }
 ```
 

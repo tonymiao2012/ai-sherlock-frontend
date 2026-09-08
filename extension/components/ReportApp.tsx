@@ -346,23 +346,38 @@ export default function ReportApp() {
                     key={f.id}
                     size="small"
                     title={
-                      <Space>
-                        {f.type && <Tag color="blue">{f.type}</Tag>}
-                        {f.severity && (
-                          <Tag
-                            color={
-                              f.severity === 'HIGH'
-                                ? 'red'
-                                : f.severity === 'MEDIUM'
-                                  ? 'orange'
-                                  : 'green'
-                            }
-                          >
-                            {f.severity}
-                          </Tag>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ flex: 1, wordBreak: 'break-word', whiteSpace: 'normal', minWidth: 0 }}>{f.title ?? f.id}</span>
+                        {(f.type || f.severity) && (
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {f.type && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: '#e6f4ff',
+                                color: '#1677ff',
+                                letterSpacing: 0.5,
+                              }}>
+                                {f.type}
+                              </span>
+                            )}
+                            {f.severity && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: f.severity === 'HIGH' ? '#fff1f0' : f.severity === 'MEDIUM' ? '#fff7e6' : '#f6ffed',
+                                color: f.severity === 'HIGH' ? '#cf1322' : f.severity === 'MEDIUM' ? '#d46b08' : '#389e0d',
+                              }}>
+                                {f.severity}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        <span>{f.title ?? f.id}</span>
-                      </Space>
+                      </div>
                     }
                   >
                     {f.rootCause && (
@@ -394,29 +409,11 @@ export default function ReportApp() {
                     )}
                   </Card>
                 ))}
-                {report.diagnosis.caseSummary && (
-                  <div
-                    style={{
-                      background: 'var(--sh-sunken)',
-                      padding: 12,
-                      borderRadius: 4,
-                      fontSize: 13,
-                      lineHeight: 1.9,
-                    }}
-                  >
-                    {splitSentences(report.diagnosis.caseSummary).map((s, i) => (
-                      <div key={i} style={{ wordBreak: 'break-word' }}>
-                        {s}
-                      </div>
-                    ))}
+                {report.diagnosis.findings.length === 0 && (
+                  <div style={{ color: 'var(--sh-muted)' }}>
+                    No root cause analysis available yet.
                   </div>
                 )}
-                {!report.diagnosis.caseSummary &&
-                  report.diagnosis.findings.length === 0 && (
-                    <div style={{ color: 'var(--sh-muted)' }}>
-                      No root cause analysis available yet.
-                    </div>
-                  )}
               </Space>
             ) : (
               <div style={{ color: 'var(--sh-muted)' }}>

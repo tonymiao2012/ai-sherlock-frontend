@@ -133,7 +133,7 @@ async function postIssue(
 ): Promise<{ ok: true; caseKey?: string; status?: string } | { ok: false; error: string }> {
   try {
     const token = await getIngestToken();
-    const resp = await fetch('https://api.aisherlock.vip/api/v1/plugin/issues', {
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/plugin/issues', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ async function fetchCasesList(): Promise<{
 }> {
   try {
     const headers = await apiHeaders();
-    const resp = await fetch('https://api.aisherlock.vip/api/v1/cases?page=0&size=50', {
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/cases?page=0&size=50', {
       headers,
     });
     if (!resp.ok) {
@@ -246,7 +246,7 @@ async function fetchCaseDetail(
 ): Promise<{ ok: boolean; case?: IssuePackage; error?: string }> {
   try {
     const headers = await apiHeaders();
-    const resp = await fetch(`https://api.aisherlock.vip/api/v1/cases/${encodeURIComponent(caseKey)}`, {
+    const resp = await fetch(`https://www.aisherlock.vip/api/v1/cases/${encodeURIComponent(caseKey)}`, {
       headers,
     });
     if (!resp.ok) {
@@ -291,7 +291,7 @@ async function fetchCaseDetail(
 async function updateVerifyBadge(): Promise<void> {
   try {
     const headers = await apiHeaders();
-    const resp = await fetch('https://api.aisherlock.vip/api/v1/cases?page=0&size=50', {
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/cases?page=0&size=50', {
       headers,
     });
     if (!resp.ok) return; // 失败保留上次角标
