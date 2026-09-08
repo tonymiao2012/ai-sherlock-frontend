@@ -1,8 +1,11 @@
 import type {
   AuditLogItem,
   Case,
+  CaseStatus,
+  CaseV2,
   DashboardOverview,
   Group,
+  GroupV2,
   JiraStatus,
   Project,
   Repository,
@@ -12,7 +15,8 @@ import type {
   User,
 } from '../types';
 import { JIRA_STATUS_FLOW, stageOf } from '../domain/ticket';
-import { AUDIT_LOGS, GROUPS, PROJECTS, TICKETS, USERS, buildCase } from './mockData';
+import { canTransition } from '../domain/caseLifecycle';
+import { AUDIT_LOGS, CASES_V2, GROUPS, GROUPS_V2, PROJECTS, TICKETS, USERS, buildCase } from './mockData';
 
 /**
  * 接口层：签名与 PRD §12 API 契约一致（/projects、/projects/{key}/tickets、/dashboard/overview…）。
@@ -25,6 +29,8 @@ let projects = clone(PROJECTS);
 let tickets = clone(TICKETS);
 let users = clone(USERS);
 const groups = clone(GROUPS);
+const groupsV2 = clone(GROUPS_V2);
+let casesV2 = clone(CASES_V2);
 const auditLogs = clone(AUDIT_LOGS);
 
 const JIRA_TO_FIX: Record<JiraStatus, Ticket['fix']['status']> = {
@@ -149,6 +155,48 @@ export async function listUsers(): Promise<User[]> {
 export async function listGroups(): Promise<Group[]> {
   await sleep();
   return clone(groups);
+}
+
+export async function listGroupsV2(): Promise<GroupV2[]> {
+  await sleep();
+  return clone(groupsV2);
+}
+
+export async function listCasesV2(filter?: { groupId?: string; assigneeId?: string; status?: CaseStatus }): Promise<CaseV2[]> {
+  await sleep();
+  let result = clone(casesV2);
+  if (filter?.groupId) result = result.filter(c => c.groupId === filter.groupId);
+  if (filter?.assigneeId) result = result.filter(c => c.assigneeId === filter.assigneeId);
+  if (filter?.status) result = result.filter(c => c.status === filter.status);
+  return result;
+}
+
+export async function assignCase(caseId: string, assigneeId: string, actor: string): Promise<CaseV2> {
+  await sleep();
+  const caseItem = casesV2.find(c => c.id === caseId);
+  if (!caseItem) throw new Error(`Case not found: ${caseId}`);
+  caseItem.assigneeId = assigneeId;
+  caseItem.updatedAt = new Date().toISOString();
+  log(actor, 'CASE_ASSIGN', caseItem.caseKey, `分配给 ${assigneeId}`);
+  return clone(caseItem);
+}
+
+export async function changeCaseStatus(
+  caseId: string,
+  newStatus: CaseStatus,
+  actor: string
+): Promise<CaseV2> {
+  await sleep();
+  const caseItem = casesV2.find(c => c.id === caseId);
+  if (!caseItem) throw new Error(`Case not found: ${caseId}`);
+  const oldStatus = caseItem.status;
+  if (!canTransition(oldStatus, newStatus)) {
+    throw new Error(`Invalid transition: ${oldStatus} → ${newStatus}`);
+  }
+  caseItem.status = newStatus;
+  caseItem.updatedAt = new Date().toISOString();
+  log(actor, 'CASE_STATUS_CHANGE', caseItem.caseKey, `${oldStatus} → ${newStatus}`);
+  return clone(caseItem);
 }
 
 export async function grantRole(userId: string, role: Role, actor: string): Promise<User> {

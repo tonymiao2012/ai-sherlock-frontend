@@ -42,10 +42,10 @@ export function DashboardPage() {
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Typography.Text type="secondary">
             {user.name}（
-            {user.role === 'ADMIN' ? '系统管理员 · 全局视角' : user.role === 'PROJECT_OWNER' ? `项目 Owner · ${visibleProjects.length} 个项目` : '普通成员 · 只读'}
+            {user.role === 'ADMIN' ? '系统管理员 · 全局视角' : user.role === 'OWNER' ? `Group Owner · ${visibleProjects.length} 个项目` : 'Staff · 只读'}
             ）
           </Typography.Text>
-          {can('ticket.approve') && pending.length > 0 && (
+          {can('case.status.modify') && pending.length > 0 && (
             <Button size="small" type="link" onClick={() => nav('/tickets')} icon={<RightOutlined />}>
               {pending.length} 条待审批修复
             </Button>
@@ -150,11 +150,11 @@ export function DashboardPage() {
           <List
             size="small"
             dataSource={pending.slice(0, 6)}
-            locale={{ emptyText: can('ticket.approve') ? '没有待审批的修复建议' : '普通成员无审批职责，请到「我的工单」处理分配给你的工单' }}
+            locale={{ emptyText: can('case.status.modify') ? '没有待审批的修复建议' : '普通成员无审批职责，请到「Case 列表」处理分配给你的 Case' }}
             renderItem={(t) => (
               <List.Item
                 actions={[
-                  can('ticket.approve') ? (
+                  can('case.status.modify') ? (
                     <Button key="go" size="small" type="link" onClick={() => nav(`/tickets?assignee=${t.assigneeId}`)}>
                       去审批
                     </Button>

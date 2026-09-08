@@ -8,7 +8,6 @@ import { STAGE_META, stageOf } from '../domain/ticket';
 import { fmtDateTime } from '../domain/format';
 import { useSession } from '../context/Session';
 import { TicketTable } from '../components/TicketTable';
-import { CaseDrawer } from '../components/CaseDrawer';
 import { StageLegend } from '../components/StageTag';
 
 const STAGES: Stage[] = ['ANALYZING', 'DEVELOPING', 'VERIFYING', 'DEPLOYING', 'DONE', 'REJECTED'];
@@ -34,7 +33,6 @@ export function JiraBoardPage({ meOnly = false }: { meOnly?: boolean }) {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string>();
   const [syncResult, setSyncResult] = useState<SyncResult>();
-  const [active, setActive] = useState<Ticket>();
   const [rejecting, setRejecting] = useState<Ticket>();
   const [reason, setReason] = useState('');
 
@@ -77,7 +75,7 @@ export function JiraBoardPage({ meOnly = false }: { meOnly?: boolean }) {
     return map;
   }, [tickets]);
 
-  const canApprove = can('ticket.approve', projectId ? visibleProjects.find((p) => p.id === projectId) : undefined);
+  const canApprove = can('case.status.modify');
   const assigneeOptions = useMemo(
     () => [...new Set(tickets.map((t) => t.assigneeId))].map((id) => ({ value: id, label: userName(id) })),
     [tickets, userName],
@@ -258,23 +256,8 @@ export function JiraBoardPage({ meOnly = false }: { meOnly?: boolean }) {
         showProject={!projectId}
         onApprove={approve}
         onReject={setRejecting}
-        onOpenCase={setActive}
-        onSyncRow={can('ticket.sync') ? sync : undefined}
-      />
-
-      <CaseDrawer
-        ticket={active}
-        open={Boolean(active)}
-        onClose={() => setActive(undefined)}
-        canApprove={!meOnly && canApprove}
-        onApprove={(t) => {
-          setActive(undefined);
-          approve(t);
-        }}
-        onReject={(t) => {
-          setActive(undefined);
-          setRejecting(t);
-        }}
+        onOpenCase={() => {}}
+        onSyncRow={can('case.status.modify') ? sync : undefined}
       />
 
       <Modal

@@ -1,11 +1,11 @@
 import { App as AntApp, Alert, Button, Card, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
-import type { AuditLogItem, Role, Ticket, User } from '../types';
+import type { AuditLogItem, NewRole, Ticket, User, UserV2 } from '../types';
 import * as api from '../services/api';
 import { fmtDateTime, timeAgo } from '../domain/format';
 import { ROLE_LABEL, useSession } from '../context/Session';
 
-const ROLE_COLOR: Record<Role, string> = { ADMIN: 'purple', PROJECT_OWNER: 'green', DEVELOPER: 'default' };
+const ROLE_COLOR: Record<NewRole, string> = { ADMIN: 'purple', OWNER: 'green', STAFF: 'default' };
 
 /** §2 / §3 角色与授权：Admin 授予 PROJECT_OWNER，即授予「创建项目 + 管项目 + 批修复」 */
 export function MembersPage() {
@@ -14,7 +14,7 @@ export function MembersPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [granting, setGranting] = useState<User>();
-  const [targetRole, setTargetRole] = useState<Role>('PROJECT_OWNER');
+  const [targetRole, setTargetRole] = useState<NewRole>('OWNER');
   const [managed, setManaged] = useState<string[]>([]);
 
   useEffect(() => {
@@ -24,23 +24,23 @@ export function MembersPage() {
     });
   }, []);
 
-  const editable = can('member.manage');
+  const editable = can('staff.manage');
 
-  const openGrant = (u: User) => {
-    setGranting(u);
-    setTargetRole(u.role === 'PROJECT_OWNER' ? 'DEVELOPER' : 'PROJECT_OWNER');
-    setManaged(u.managedProjectIds);
+  const openGrant = (u: User | UserV2) => {
+    setGranting(u as User);
+    setTargetRole((u.role as NewRole) === 'OWNER' ? 'STAFF' : 'OWNER');
+    setManaged((u as User).managedProjectIds ?? []);
   };
 
   const submitGrant = async () => {
     if (!granting) return;
-    await api.grantRole(granting.id, targetRole, user.email);
-    if (targetRole === 'PROJECT_OWNER') {
+    await api.grantRole(granting.id, targetRole as any, user.email);
+    if (targetRole === 'OWNER') {
       const fresh = users.find((u) => u.id === granting.id)!;
-      await api.saveUser({ ...fresh, managedProjectIds: managed, status: 'ACTIVE' }, user.email);
+      await api.saveUser({ ...(fresh as User), managedProjectIds: managed, status: 'ACTIVE' } as User, user.email);
     }
     await refresh();
-    message.success(`${granting.name} 现在是${ROLE_LABEL[targetRole]}`);
+    message.success(`${granting.name} 现在是${ROLE_LABEL[targetRole as NewRole]}`);
     setGranting(undefined);
   };
 
@@ -51,7 +51,7 @@ export function MembersPage() {
       title: '成员',
       dataIndex: 'name',
       width: 210,
-      render: (_: unknown, u: User) => (
+      render: (_: unknown, u: User | UserV2) => (
         <div>
           <Typography.Text strong>{u.name}</Typography.Text>
           <div className="ac-meta">
@@ -64,15 +64,15 @@ export function MembersPage() {
       title: '角色',
       dataIndex: 'role',
       width: 132,
-      render: (r: Role) => <Tag color={ROLE_COLOR[r]}>{ROLE_LABEL[r]}</Tag>,
+      render: (r: NewRole) => <Tag color={ROLE_COLOR[r]}>{ROLE_LABEL[r]}</Tag>,
     },
     {
       title: '可管项目',
       key: 'managed',
       width: 200,
-      render: (_: unknown, u: User) => {
+      render: (_: unknown, u: User | UserV2) => {
         if (u.role === 'ADMIN') return <Typography.Text type="secondary">全部项目</Typography.Text>;
-        const list = u.role === 'PROJECT_OWNER' ? projects.filter((p) => u.managedProjectIds.includes(p.id)) : [];
+        const list = u.role === 'OWNER' ? projects.filter((p) => (u as User).managedProjectIds?.includes(p.id)) : [];
         if (!list.length) return <Typography.Text type="secondary">—</Typography.Text>;
         return (
           <Space size={2} wrap>
@@ -87,7 +87,7 @@ export function MembersPage() {
       title: '所属 Group',
       key: 'groups',
       width: 210,
-      render: (_: unknown, u: User) =>
+      render: (_: unknown, u: User | UserV2) =>
         u.groupIds.length ? (
           <Space size={2} wrap>
             {u.groupIds.map((g) => (
@@ -108,7 +108,7 @@ export function MembersPage() {
       title: '待处理工单',
       key: 'tickets',
       width: 108,
-      render: (_: unknown, u: User) => (
+      render: (_: unknown, u: User | UserV2) => (
         <Space size={4}>
           <b>{assigned(u.id)}</b>
           <Typography.Text type="secondary">分配</Typography.Text>
@@ -127,10 +127,10 @@ export function MembersPage() {
       key: 'ops',
       fixed: 'right' as const,
       width: 150,
-      render: (_: unknown, u: User) => (
+      render: (_: unknown, u: User | UserV2) => (
         <Space size={2}>
           <Button size="small" type="link" disabled={!editable || u.id === user.id} onClick={() => openGrant(u)}>
-            {u.role === 'PROJECT_OWNER' ? '回收权限' : '授予 Owner'}
+            {u.role === 'OWNER' ? '回收权限' : '授予 Owner'}
           </Button>
           <Button
             size="small"
@@ -214,7 +214,7 @@ export function MembersPage() {
     },
   ];
 
-  const ownerCount = users.filter((u) => u.role === 'PROJECT_OWNER').length;
+  const ownerCount = users.filter((u) => u.role === 'OWNER').length;
 
   return (
     <Card
@@ -222,8 +222,8 @@ export function MembersPage() {
       title="成员与权限"
       styles={{ body: { paddingTop: 14 } }}
       extra={
-        <Button type="primary" disabled={!editable} onClick={() => openGrant(users.find((u) => u.role === 'DEVELOPER' && u.status === 'ACTIVE')!)}>
-          授予项目 Owner
+        <Button type="primary" disabled={!editable} onClick={() => openGrant(users.find((u) => u.role === 'STAFF' && u.status === 'ACTIVE')!)}>
+          授予 Group Owner
         </Button>
       }
     >
@@ -239,10 +239,10 @@ export function MembersPage() {
                   type="info"
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message={`当前 ${ownerCount} 位项目 Owner。授予 PROJECT_OWNER 后即获得：创建项目、绑定仓库与 Kibana 索引、配置访问 Group、批准或拒绝 AI 修复。`}
-                  description="普通成员（DEVELOPER）只出现在被授权的工单列表里，处理动作回到 JIRA。工单分配以 JIRA Assignee 为准，不在中台单独维护。"
+                  message={`当前 ${ownerCount} 位 Group Owner。授予 OWNER 后即获得：管理 Group、分配 Case、批准或拒绝 AI 修复。`}
+                  description="Staff（DEV/TESTER）在 Group 范围内查看 Case，处理动作取决于分配状态与 Case 阶段。"
                 />
-                <Table<User> rowKey="id" size="small" columns={userColumns} dataSource={users} scroll={{ x: 1180 }} pagination={false} />
+                <Table<User | UserV2> rowKey="id" size="small" columns={userColumns} dataSource={users} scroll={{ x: 1180 }} pagination={false} />
               </>
             ),
           },
@@ -287,13 +287,13 @@ export function MembersPage() {
               value={targetRole}
               onChange={setTargetRole}
               options={[
-                { value: 'PROJECT_OWNER', label: '项目 Owner —— 可建项目、管项目、批修复' },
-                { value: 'DEVELOPER', label: '普通成员 —— 只读被授权项目的工单列表' },
-                { value: 'ADMIN', label: '系统管理员 —— 全部项目与成员权限' },
+                { value: 'OWNER', label: 'Group Owner —— 管理 Group、分配 Case、批修复' },
+                { value: 'STAFF', label: 'Staff —— 查看与处理 Group 内 Case' },
+                { value: 'ADMIN', label: '系统管理员 —— 全部权限' },
               ]}
             />
           </div>
-          {targetRole === 'PROJECT_OWNER' && (
+          {targetRole === 'OWNER' && (
             <div>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
                 可管理的项目（建项目后可再调整）
@@ -308,7 +308,7 @@ export function MembersPage() {
               />
             </div>
           )}
-          {targetRole !== 'DEVELOPER' && (
+          {targetRole !== 'STAFF' && (
             <Alert type="warning" showIcon message="回收 OWNER 角色会同时清空该项目下由他配置的仓库与日志绑定的管理权限，只保留查看。" />
           )}
         </Space>

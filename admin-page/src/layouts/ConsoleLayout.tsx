@@ -1,14 +1,12 @@
 import { Avatar, Layout, Menu, Select, Space, Tag, Typography } from 'antd';
 import {
-  AppstoreOutlined,
+  ApartmentOutlined,
   DashboardOutlined,
-  DatabaseOutlined,
   FileSearchOutlined,
-  IdcardOutlined,
   SettingOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import type { Role } from '../types';
+import type { NewRole } from '../types';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LOGO_URL, ROOT_URL } from '../assets';
 import { ROLE_LABEL, useSession } from '../context/Session';
@@ -16,28 +14,27 @@ import { ROLE_LABEL, useSession } from '../context/Session';
 const { Sider, Header, Content } = Layout;
 
 /** §4.1 导航 + §2 角色可见性 */
-const MENUS: { key: string; label: string; icon: React.ReactNode; roles: Role[] }[] = [
-  { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined />, roles: ['ADMIN', 'PROJECT_OWNER'] },
-  { key: '/my-tickets', label: '我的工单', icon: <IdcardOutlined />, roles: ['DEVELOPER'] },
-  { key: '/tickets', label: '工单列表', icon: <DatabaseOutlined />, roles: ['ADMIN', 'PROJECT_OWNER', 'DEVELOPER'] },
-  { key: '/projects', label: '项目管理', icon: <AppstoreOutlined />, roles: ['ADMIN', 'PROJECT_OWNER', 'DEVELOPER'] },
-  { key: '/cases', label: 'Case 列表', icon: <FileSearchOutlined />, roles: ['ADMIN', 'PROJECT_OWNER'] },
-  { key: '/members', label: '成员与权限', icon: <TeamOutlined />, roles: ['ADMIN'] },
+const MENUS: { key: string; label: string; icon: React.ReactNode; roles: NewRole[] }[] = [
+  { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined />, roles: ['ADMIN', 'OWNER'] },
+  { key: '/cases', label: 'Case 列表', icon: <FileSearchOutlined />, roles: ['ADMIN', 'OWNER', 'STAFF'] },
+  { key: '/organization', label: '组织管理', icon: <ApartmentOutlined />, roles: ['ADMIN'] },
+  { key: '/members', label: '成员管理', icon: <TeamOutlined />, roles: ['ADMIN', 'OWNER'] },
   { key: '/settings', label: '系统设置', icon: <SettingOutlined />, roles: ['ADMIN'] },
 ];
 
-export const HOME_BY_ROLE: Record<Role, string> = {
+export const HOME_BY_ROLE: Record<NewRole, string> = {
   ADMIN: '/dashboard',
-  PROJECT_OWNER: '/dashboard',
-  DEVELOPER: '/my-tickets',
+  OWNER: '/dashboard',
+  STAFF: '/cases',
 };
 
 export function ConsoleLayout() {
   const { pathname, search } = useLocation();
   const nav = useNavigate();
   const { user, users, visibleProjects, switchUser } = useSession();
-  const items = MENUS.filter((m) => m.roles.includes(user.role));
-  const selected = items.find((m) => pathname.startsWith(m.key))?.key ?? HOME_BY_ROLE[user.role];
+  const role = user.role as NewRole;
+  const items = MENUS.filter((m) => m.roles.includes(role));
+  const selected = items.find((m) => pathname.startsWith(m.key))?.key ?? HOME_BY_ROLE[role];
   const projectKey = new URLSearchParams(search).get('project') ?? undefined;
 
   return (
@@ -60,7 +57,7 @@ export function ConsoleLayout() {
               placeholder="项目快捷切换"
               allowClear
               value={projectKey}
-              onChange={(v) => nav(v ? `/tickets?project=${v}` : '/tickets')}
+              onChange={(v) => nav(v ? `/cases?project=${v}` : '/cases')}
               options={visibleProjects.map((p) => ({ value: p.projectKey, label: p.name }))}
             />
           </Space>
@@ -74,10 +71,10 @@ export function ConsoleLayout() {
                 style={{ width: 210 }}
                 value={user.id}
                 onChange={switchUser}
-                options={(['ADMIN', 'PROJECT_OWNER', 'DEVELOPER'] as Role[]).map((role) => ({
-                  label: ROLE_LABEL[role],
+                options={(['ADMIN', 'OWNER', 'STAFF'] as NewRole[]).map((r) => ({
+                  label: ROLE_LABEL[r],
                   options: users
-                    .filter((u) => u.role === role)
+                    .filter((u) => u.role === r)
                     .map((u) => ({ value: u.id, label: `${u.name} · ${u.email}` })),
                 }))}
               />
@@ -85,8 +82,8 @@ export function ConsoleLayout() {
             <span className="ac-user">
               <Avatar size={26}>{user.name.slice(0, 1)}</Avatar>
               {user.email}
-              <Tag color={user.role === 'ADMIN' ? 'purple' : user.role === 'PROJECT_OWNER' ? 'green' : 'default'}>
-                {ROLE_LABEL[user.role]}
+              <Tag color={role === 'ADMIN' ? 'purple' : role === 'OWNER' ? 'green' : 'default'}>
+                {ROLE_LABEL[role]}
               </Tag>
             </span>
           </Space>

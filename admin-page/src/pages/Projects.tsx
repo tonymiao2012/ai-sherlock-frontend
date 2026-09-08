@@ -176,7 +176,7 @@ export function ProjectsPage() {
       fixed: 'right',
       width: 158,
       render: (_, p) => {
-        const editableNow = can('project.edit', p);
+        const editableNow = can('project.edit');
         return (
           <Space size={2}>
             <Button size="small" type="link" onClick={() => nav(`/tickets?project=${p.projectKey}`)}>
@@ -370,7 +370,7 @@ export function ProjectsPage() {
                 mode="multiple"
                 style={{ minWidth: 300 }}
                 value={accessDraft?.groupIds ?? detail.access.groupIds}
-                disabled={!can('project.access', detail)}
+                disabled={!can('project.edit')}
                 placeholder="选择 Group"
                 onChange={(v) => setAccessDraft({ ...(accessDraft ?? detail.access), groupIds: v })}
                 options={groups.map((g) => ({ value: g.id, label: `${g.name}（${g.memberCount} 人）` }))}
@@ -380,11 +380,11 @@ export function ProjectsPage() {
                 style={{ minWidth: 240 }}
                 placeholder="追加个人"
                 value={accessDraft?.userIds ?? detail.access.userIds}
-                disabled={!can('project.access', detail)}
+                disabled={!can('project.edit')}
                 onChange={(v) => setAccessDraft({ ...(accessDraft ?? detail.access), userIds: v })}
                 options={users.map((u) => ({ value: u.id, label: `${u.name} · ${u.email}` }))}
               />
-              {can('project.access', detail) && (
+              {can('project.edit') && (
                 <Button
                   type="primary"
                   loading={savingAccess}
@@ -406,7 +406,7 @@ export function ProjectsPage() {
             <Typography.Paragraph type="secondary" style={{ marginTop: 8, fontSize: 12 }}>
               Group 决定谁能看到该项目的工单列表；列表内普通成员只能查看与跳转 JIRA，不能批准 AI 修复。
             </Typography.Paragraph>
-            <Button danger onClick={() => archive(detail)} disabled={!can('project.edit', detail)}>
+            <Button danger onClick={() => archive(detail)} disabled={!can('project.edit')}>
               归档项目
             </Button>
           </>

@@ -1,58 +1,26 @@
-import { App as AntApp, Button, Descriptions, Drawer, Empty, Progress, Spin, Tabs, Tag, Timeline, Typography } from 'antd';
-import { useEffect, useState } from 'react';
-import type { Case, Ticket } from '../types';
-import * as api from '../services/api';
-import { buildJiraDescription, copyText } from '../services/jiraText';
-import { FINDING_TYPE_META, SEVERITY_META, UAT_META, ANALYSIS_REVIEW_META, FIX_STATUS_META, stageOf } from '../domain/ticket';
-import { StageSteps, StageTag } from './StageTag';
+import { Descriptions, Drawer, Empty, Progress, Tabs, Tag, Typography } from 'antd';
+import type { CaseV2, CaseStatus } from '../types';
+import { CASE_STATUS_META } from '../domain/caseLifecycle';
+import { SEVERITY_META } from '../domain/ticket';
+import { CaseStatusTag } from '../components/CaseStatusTag';
+import { CaseActions } from '../components/CaseActions';
 import { useSession } from '../context/Session';
 
 interface Props {
-  ticket?: Ticket;
+  caseItem?: CaseV2;
   open: boolean;
   onClose: () => void;
-  canApprove: boolean;
-  onApprove: (ticket: Ticket) => void;
-  onReject: (ticket: Ticket) => void;
+  onAssign: (caseId: string, assigneeId: string) => Promise<void>;
+  onStatusChange: (caseId: string, newStatus: CaseStatus) => Promise<void>;
 }
 
-/** §13.3 Case 详情：证据链只在中台留档，处理动作回到 JIRA */
-export function CaseDrawer({ ticket, open, onClose, canApprove, onApprove, onReject }: Props) {
-  const { message } = AntApp.useApp();
+export function CaseDrawer({ caseItem, open, onClose, onAssign, onStatusChange }: Props) {
   const { projects, userName } = useSession();
-  const [kase, setKase] = useState<Case>();
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open || !ticket) return;
-    setLoading(true);
-    api.getCase(ticket.caseKey).then((c) => {
-      setKase(c);
-      setLoading(false);
-    });
-  }, [open, ticket?.caseKey]);
+  if (!caseItem) return null;
 
-  if (!ticket) return null;
-  const project = projects.find((p) => p.id === ticket.projectId);
-  const finding = kase?.findings[0];
-
-  const actions = (
-    <div className="ac-tools">
-      {canApprove && ticket.analysisReview === 'DONE' && (
-        <>
-          <Button size="small" type="primary" onClick={() => onApprove(ticket)}>
-            批准修复
-          </Button>
-          <Button size="small" danger onClick={() => onReject(ticket)}>
-            拒绝
-          </Button>
-        </>
-      )}
-      <Button size="small" onClick={() => window.open(ticket.jiraUrl, '_blank', 'noopener')}>
-        在 JIRA 中处理
-      </Button>
-    </div>
-  );
+  const project = projects.find((p) => p.id === caseItem.projectId);
+  const finding = caseItem.findings[0];
 
   return (
     <Drawer
@@ -61,155 +29,102 @@ export function CaseDrawer({ ticket, open, onClose, canApprove, onApprove, onRej
       width={760}
       title={
         <span className="ac-tools">
-          <Typography.Text strong>{ticket.caseKey}</Typography.Text>
-          <StageTag stage={stageOf(ticket)} />
+          <Typography.Text strong>{caseItem.caseKey}</Typography.Text>
+          <CaseStatusTag status={caseItem.status} />
         </span>
       }
-      extra={<Typography.Text type="secondary" copyable={{ text: ticket.jiraKey }}>{ticket.jiraKey}</Typography.Text>}
     >
-      <Spin spinning={loading}>
-        <Typography.Paragraph style={{ marginTop: 0 }} strong>
-          {ticket.title}
-        </Typography.Paragraph>
-        <StageSteps ticket={ticket} />
+      <Typography.Paragraph style={{ marginTop: 0 }} strong>
+        {caseItem.title}
+      </Typography.Paragraph>
 
-        <Descriptions
-          size="small"
-          column={2}
-          style={{ marginBlock: 18 }}
-          items={[
-            { key: 'p', label: '项目', children: project?.name ?? '—' },
-            { key: 's', label: '服务', children: ticket.service },
-            { key: 'e', label: '环境', children: ticket.environment },
-            { key: 'sv', label: '严重程度', children: SEVERITY_META[ticket.severity].label },
-            { key: 't', label: '类型', children: FINDING_TYPE_META[ticket.findingType].label },
-            { key: 'a', label: 'Assignee', children: `${userName(ticket.assigneeId)}（默认 ${userName(ticket.defaultAssigneeId)}）` },
-            { key: 'an', label: '分析状态', children: ANALYSIS_REVIEW_META[ticket.analysisReview] },
-            { key: 'f', label: '修复状态', children: FIX_STATUS_META[ticket.fix.status] },
-            { key: 'u', label: 'UAT', children: UAT_META[ticket.uat] },
-            { key: 'c', label: '创建 / 更新', children: `${fmt(ticket.createdAt)} · ${fmt(ticket.updatedAt)}` },
-          ]}
-        />
+      <Descriptions
+        size="small"
+        column={2}
+        style={{ marginBlock: 18 }}
+        items={[
+          { key: 'p', label: '项目', children: project?.name ?? '—' },
+          { key: 'e', label: '环境', children: caseItem.environment },
+          { key: 'sv', label: '严重程度', children: SEVERITY_META[caseItem.severity]?.label ?? caseItem.severity },
+          { key: 'a', label: '负责人', children: caseItem.assigneeId ? userName(caseItem.assigneeId) : '未分配' },
+          { key: 'r', label: '上报人', children: caseItem.reporter },
+          { key: 'bv', label: 'Build Version', children: caseItem.buildVersion },
+          { key: 's', label: '当前状态', children: CASE_STATUS_META[caseItem.status]?.label ?? caseItem.status },
+        ]}
+      />
 
-        <Tabs
-          items={[
-            {
-              key: 'finding',
-              label: 'AI 诊断结论',
-              children: finding ? (
-                <div>
-                  <Typography.Paragraph>
-                    <Typography.Text type="secondary">Root Cause</Typography.Text>
-                    <br />
-                    {finding.rootCause}
-                  </Typography.Paragraph>
-                  <div className="ac-tools" style={{ gap: 24, marginBlockEnd: 14 }}>
-                    <ConfidenceBar label="AI 置信度" value={finding.aiConfidence} />
-                    <ConfidenceBar label="系统校验" value={finding.systemConfidence} />
-                    <Tag color={finding.verificationStatus === 'VERIFIED' ? 'success' : 'default'}>
-                      {finding.verificationStatus}
-                    </Tag>
-                  </div>
-                  <Typography.Paragraph>
-                    <Typography.Text type="secondary">涉及文件</Typography.Text>
-                    <br />
-                    <Typography.Text code>{finding.locations.map((l) => `${l.file}:${l.line}`).join('\n')}</Typography.Text>
-                  </Typography.Paragraph>
-                  <Typography.Paragraph>
-                    <Typography.Text type="secondary">建议修复</Typography.Text>
-                    <br />
-                    {finding.recommendedFix}
-                  </Typography.Paragraph>
-                  <Button
-                    onClick={async () => {
-                      const ok = await copyText(buildJiraDescription(ticket, kase!, project));
-                      message[ok ? 'success' : 'error'](ok ? 'JIRA 描述已复制，粘贴到工单即可' : '复制失败，请手动选择文本');
-                    }}
-                  >
-                    一键生成 JIRA 描述
-                  </Button>
-                </div>
-              ) : (
-                <Empty description="暂无诊断结论" />
-              ),
-            },
-            {
-              key: 'evidence',
-              label: '证据链',
-              children: kase ? (
-                <div>
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    {kase.evidenceChain.map((n) => `${n.node}(${n.label})`).join(' → ')}
-                  </Typography.Paragraph>
-                  <EvidenceGroup title="Network" items={kase.network} />
-                  <EvidenceGroup title="Console" items={kase.consoleLogs} />
-                  <EvidenceGroup title="异常堆栈" items={kase.stacks} />
-                  <Descriptions
-                    size="small"
-                    column={1}
-                    items={[
-                      { key: 'url', label: '页面 URL', children: <Typography.Text copyable>{kase.pageUrl}</Typography.Text> },
-                      { key: 'bv', label: 'Build Version', children: kase.buildVersion },
-                      { key: 'rp', label: '上报人', children: kase.reporter },
-                    ]}
-                  />
-                </div>
-              ) : null,
-            },
-            {
-              key: 'pipeline',
-              label: '修复流水线',
-              children: (
-                <div>
-                  <Timeline
-                    items={ticket.fix.logs.map((l) => ({
-                      color: l.actor === 'system' || l.actor === 'llm' ? 'blue' : 'green',
-                      children: (
-                        <div>
-                          <Typography.Text strong>{l.message}</Typography.Text>
-                          <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
-                            {l.actor} · {fmt(l.at)}
-                          </Typography.Text>
-                        </div>
-                      ),
-                    }))}
-                  />
-                  {ticket.fix.prUrl && (
-                    <Typography.Paragraph>
-                      PR：
-                      <Typography.Link href={ticket.fix.prUrl} target="_blank">
-                        {ticket.fix.prBranch}
-                      </Typography.Link>
-                      <Typography.Text type="secondary"> （Merge 在 Bitbucket 完成，中台不代操作）</Typography.Text>
-                    </Typography.Paragraph>
-                  )}
-                </div>
-              ),
-            },
-            {
-              key: 'raw',
-              label: '原始上报',
-              children: (
-                <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-                  {kase?.description}
-                  {'\n\n'}
-                  {JSON.stringify(
-                    { caseKey: ticket.caseKey, findingKey: ticket.findingKey, jiraKey: ticket.jiraKey, promptTokens: 1842, latencyMs: 38_600 },
-                    null,
-                    2,
-                  )}
+      <div style={{ marginBottom: 16 }}>
+        <CaseActions caseItem={caseItem} onAssign={onAssign} onStatusChange={onStatusChange} />
+      </div>
+
+      <Tabs
+        items={[
+          {
+            key: 'finding',
+            label: 'AI 诊断结论',
+            children: finding ? (
+              <div>
+                <Typography.Paragraph>
+                  <Typography.Text type="secondary">Root Cause</Typography.Text>
+                  <br />
+                  {finding.rootCause}
                 </Typography.Paragraph>
-              ),
-            },
-          ]}
-        />
-      </Spin>
-      <div style={{ marginTop: 18 }}>{actions}</div>
+                <div className="ac-tools" style={{ gap: 24, marginBlockEnd: 14 }}>
+                  <ConfidenceBar label="AI 置信度" value={finding.aiConfidence} />
+                  <ConfidenceBar label="系统校验" value={finding.systemConfidence} />
+                  <Tag color={finding.verificationStatus === 'VERIFIED' ? 'success' : 'default'}>
+                    {finding.verificationStatus}
+                  </Tag>
+                </div>
+                <Typography.Paragraph>
+                  <Typography.Text type="secondary">涉及文件</Typography.Text>
+                  <br />
+                  <Typography.Text code>
+                    {finding.locations.map((l) => `${l.file}:${l.line}`).join('\n')}
+                  </Typography.Text>
+                </Typography.Paragraph>
+                <Typography.Paragraph>
+                  <Typography.Text type="secondary">建议修复</Typography.Text>
+                  <br />
+                  {finding.recommendedFix}
+                </Typography.Paragraph>
+              </div>
+            ) : (
+              <Empty description="暂无诊断结论" />
+            ),
+          },
+          {
+            key: 'evidence',
+            label: '证据链',
+            children: (
+              <div>
+                {caseItem.evidenceChain.length > 0 && (
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                    {caseItem.evidenceChain.map((n) => `${n.node}(${n.label})`).join(' → ')}
+                  </Typography.Paragraph>
+                )}
+                <EvidenceGroup title="Network" items={caseItem.network} />
+                <EvidenceGroup title="Console" items={caseItem.consoleLogs} />
+                <EvidenceGroup title="异常堆栈" items={caseItem.stacks} />
+                <Descriptions
+                  size="small"
+                  column={1}
+                  items={[
+                    { key: 'url', label: '页面 URL', children: <Typography.Text copyable>{caseItem.pageUrl}</Typography.Text> },
+                    { key: 'desc', label: '描述', children: caseItem.description },
+                  ]}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
     </Drawer>
   );
 }
 
 function EvidenceGroup({ title, items }: { title: string; items: { id: string; label: string; detail: string }[] }) {
+  if (items.length === 0) return null;
   return (
     <div style={{ marginBottom: 16 }}>
       <Typography.Text type="secondary">{title}</Typography.Text>
@@ -230,10 +145,4 @@ function ConfidenceBar({ label, value }: { label: string; value: number }) {
       <Progress percent={Math.round(value * 100)} size="small" />
     </div>
   );
-}
-
-function fmt(v: string) {
-  if (!v) return '—';
-  const d = new Date(v);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }

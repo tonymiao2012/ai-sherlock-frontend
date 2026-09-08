@@ -1,12 +1,18 @@
 /** 域模型与 PRD（docs/middle-platform-prd.html）§2 / §11 表结构对齐 */
 
+/** @deprecated Use NewRole instead */
 export type Role = 'ADMIN' | 'PROJECT_OWNER' | 'DEVELOPER';
+
+/** 新角色模型（docs/backend-admin-requirements.md §2） */
+export type NewRole = 'ADMIN' | 'OWNER' | 'STAFF';
+export type StaffType = 'DEV' | 'TESTER';
 
 /** §11.1 auth_provider */
 export type AuthProvider = 'GOOGLE' | 'SSO' | 'PASSWORD';
 
 export type UserStatus = 'ACTIVE' | 'PENDING' | 'DISABLED';
 
+/** @deprecated Use UserV2 instead */
 export interface User {
   id: string;
   email: string;
@@ -21,6 +27,29 @@ export interface User {
   createdAt: string;
 }
 
+/** 新用户模型（docs/backend-admin-requirements.md §2） */
+export interface UserV2 {
+  id: string;
+  email: string;
+  name: string;
+  role: NewRole;
+  staffType?: StaffType; // only for STAFF
+  authProvider: AuthProvider;
+  groupIds: string[];
+  status: UserStatus;
+  lastLoginAt: string;
+  createdAt: string;
+}
+
+/** 组织（docs/backend-admin-requirements.md §1） */
+export interface Organization {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}
+
+/** @deprecated Use GroupV2 instead */
 /** §11.1 group：项目可见性的授权单位 */
 export interface Group {
   id: string;
@@ -28,6 +57,18 @@ export interface Group {
   description: string;
   memberCount: number;
   autoSync: 'JIRA_ROLE' | 'LDAP' | 'MANUAL';
+}
+
+/** 新 Group 模型（docs/backend-admin-requirements.md §1） */
+export interface GroupV2 {
+  id: string;
+  name: string;
+  description: string;
+  organizationId: string;
+  ownerId: string;
+  memberIds: string[];
+  projectIds: string[];
+  createdAt: string;
 }
 
 export interface ProjectAccess {
@@ -211,6 +252,7 @@ export interface Evidence {
 }
 
 /** §13.3 Case 详情 */
+/** @deprecated Use CaseV2 instead */
 export interface Case {
   id: string;
   caseKey: string;
@@ -224,6 +266,42 @@ export interface Case {
   reportedAt: string;
   status: 'RECEIVED' | 'PARSING' | 'ENRICHING' | 'ANALYZING' | 'DIAGNOSED' | 'JIRA' | 'DONE' | 'FAILED';
   description: string;
+  network: Evidence[];
+  consoleLogs: Evidence[];
+  stacks: Evidence[];
+  evidenceChain: { node: string; label: string }[];
+  findings: Finding[];
+}
+
+/** Case 生命周期状态（docs/backend-admin-requirements.md §6） */
+export type CaseStatus =
+  | 'PENDING'      // 未开始
+  | 'ANALYZING'    // 分析中
+  | 'ANALYZED'     // 分析完成
+  | 'DEVELOPING'   // 开发中
+  | 'DEPLOYING'    // 部署中
+  | 'DEPLOYED'     // 部署完成
+  | 'VERIFYING'    // 验证中
+  | 'VERIFIED'     // 验证通过
+  | 'FAILED';      // 验证失败
+
+/** 新 Case 模型（docs/backend-admin-requirements.md §6） */
+export interface CaseV2 {
+  id: string;
+  caseKey: string;
+  projectId: string;
+  groupId: string;
+  title: string;
+  description: string;
+  status: CaseStatus;
+  assigneeId?: string;
+  environment: Environment;
+  severity: Severity;
+  pageUrl: string;
+  buildVersion: string;
+  reporter: string;
+  reportedAt: string;
+  updatedAt: string;
   network: Evidence[];
   consoleLogs: Evidence[];
   stacks: Evidence[];

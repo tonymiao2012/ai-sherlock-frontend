@@ -6,11 +6,11 @@ import { fmtDateTime } from '../domain/format';
 /** §3 鉴权与 §8/§9 集成策略：MVP 只放 Google OAuth，SSO 预留 */
 export function SettingsPage() {
   const { message } = AntApp.useApp();
-  const { can, user } = useSession();
+  const { user } = useSession();
   const [domains, setDomains] = useState<string[]>(['company.com', 'company-inc.com']);
   const [polling, setPolling] = useState(true);
   const [pollInterval, setPollInterval] = useState(5);
-  const editable = can('settings.manage');
+  const editable = user.role === 'ADMIN';
 
   const save = (what: string) => message.success(`${what}已保存`);
 
