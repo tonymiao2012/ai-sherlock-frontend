@@ -4,6 +4,7 @@
 // 3. 提交时向页面拉取证据、组装问题包、写入 IndexedDB、打开数据接收页
 import { loadCases, loadReport, saveCase, saveReport } from '../../core/db';
 import { sendToActiveTab, uid, type RuntimeMessage } from '../../core/messages';
+import { isPendingVerifyStatus } from '../../core/types';
 import type {
   EvidenceDump,
   IssuePackage,
@@ -29,6 +30,13 @@ export default defineBackground(() => {
       return true; // 异步 sendResponse
     }
   );
+
+  // 待验证红点：MV3 service worker 会被回收，SSE 保不住连接，用 alarms 轮询
+  chrome.alarms.create('poll-pending-verify', { periodInMinutes: 1 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'poll-pending-verify') updateVerifyBadge();
+  });
+  updateVerifyBadge();
 });
 
 async function handleMessage(msg: RuntimeMessage): Promise<unknown> {
@@ -125,7 +133,7 @@ async function postIssue(
 ): Promise<{ ok: true; caseKey?: string; status?: string } | { ok: false; error: string }> {
   try {
     const token = await getIngestToken();
-    const resp = await fetch('https://api.aisherlock.vip/api/v1/plugin/issues', {
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/plugin/issues', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -167,7 +175,7 @@ async function fetchCasesList(): Promise<{
 }> {
   try {
     const headers = await apiHeaders();
-    const resp = await fetch('https://api.aisherlock.vip/api/v1/cases?page=0&size=50', {
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/cases?page=0&size=50', {
       headers,
     });
     if (!resp.ok) {
@@ -175,19 +183,57 @@ async function fetchCasesList(): Promise<{
       return { ok: false, error: `API ${resp.status}: ${text.slice(0, 200)}` };
     }
     const data = (await resp.json()) as {
-      items?: Array<{ caseKey: string; status: string; title?: string; updatedAt?: string }>;
+      items?: Array<{ caseKey: string; status: string; title?: string; createdAt?: string }>;
     };
     const localCases = await loadCases();
-    const statusMap = new Map(
+    const remoteMap = new Map(
       (data.items ?? []).map((i) => [i.caseKey, i])
     );
-    const merged = localCases.map((c) => {
-      const remote = c.caseKey ? statusMap.get(c.caseKey) : undefined;
-      if (remote) {
-        return { ...c, status: remote.status ?? c.status };
-      }
-      return c;
-    });
+    const localKeys = new Set(
+      localCases.map((c) => c.caseKey).filter(Boolean) as string[]
+    );
+    const merged = localCases
+      .filter((c) => !c.caseKey || remoteMap.has(c.caseKey))
+      .map((c) => {
+        const remote = c.caseKey ? remoteMap.get(c.caseKey) : undefined;
+        if (remote) {
+          return {
+            ...c,
+            status: remote.status ?? c.status,
+            title: remote.title || c.title,
+          };
+        }
+        return c;
+      });
+    // 后端有、本地没有的 Case（清库/多端提交）：补骨架记录，点开时由详情接口补全
+    for (const item of data.items ?? []) {
+      if (!item.caseKey || localKeys.has(item.caseKey)) continue;
+      const ts = item.createdAt ?? new Date().toISOString();
+      merged.push({
+        issueId: uid('iss-remote-'),
+        sessionId: '',
+        caseKey: item.caseKey,
+        title: item.title ?? item.caseKey,
+        description: '',
+        status: item.status,
+        screenshots: [],
+        pageContext: {
+          url: '',
+          title: '',
+          route: '',
+          referrer: '',
+          userAgent: '',
+          viewport: { width: 0, height: 0 },
+          language: '',
+          submittedAt: ts,
+        },
+        network: [],
+        consoleErrors: [],
+        stacks: [],
+        sourceHints: {},
+        meta: { pluginVersion: '0.1.0-mvp', assembledAt: ts },
+      });
+    }
     for (const c of merged) {
       await saveCase(c);
     }
@@ -202,7 +248,7 @@ async function fetchCaseDetail(
 ): Promise<{ ok: boolean; case?: IssuePackage; error?: string }> {
   try {
     const headers = await apiHeaders();
-    const resp = await fetch(`https://api.aisherlock.vip/api/v1/cases/${encodeURIComponent(caseKey)}`, {
+    const resp = await fetch(`https://www.aisherlock.vip/api/v1/cases/${encodeURIComponent(caseKey)}`, {
       headers,
     });
     if (!resp.ok) {
@@ -226,6 +272,9 @@ async function fetchCaseDetail(
       return { ok: false, error: `Case ${caseKey} not found locally` };
     }
     if (detail.status) local.status = detail.status;
+    if (!local.description && detail.description) {
+      local.description = detail.description;
+    }
     if (detail.latestDiagnosis?.summary || detail.findings) {
       local.diagnosis = {
         complete: detail.latestDiagnosis?.status === 'COMPLETED',
@@ -240,13 +289,30 @@ async function fetchCaseDetail(
   }
 }
 
+// 待验证红点：每轮只拉一次列表，统计待验证数量 → 图标角标 + storage（sidepanel 监听）
+async function updateVerifyBadge(): Promise<void> {
+  try {
+    const headers = await apiHeaders();
+    const resp = await fetch('https://www.aisherlock.vip/api/v1/cases?page=0&size=50', {
+      headers,
+    });
+    if (!resp.ok) return; // 失败保留上次角标
+    const data = (await resp.json()) as { items?: Array<{ status?: string }> };
+    const count = (data.items ?? []).filter((i) => isPendingVerifyStatus(i.status)).length;
+    await chrome.action.setBadgeBackgroundColor({ color: '#ff4d4f' });
+    await chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+    await chrome.storage.local.set({ pendingVerifyCount: count });
+  } catch {
+    // 网络异常时保留上次角标
+  }
+}
+
 function buildPackage(
   form: UserFormInput,
   screenshots: ScreenshotItem[],
   dump?: EvidenceDump,
   evidenceError?: string
-): IssuePackage {
-  const now = new Date().toISOString();
+): IssuePackage {  const now = new Date().toISOString();
   return {
     issueId: uid('iss-'),
     sessionId: uid('ses-'),

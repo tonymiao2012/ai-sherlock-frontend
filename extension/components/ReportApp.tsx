@@ -9,7 +9,9 @@ import {
   Tabs,
   Tag,
   Typography,
+  message,
 } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
 import { loadCase, loadReport } from '../core/db';
 import { BRAND_LOGO_URL } from './BrandLogo';
 import type { IssuePackage } from '../core/types';
@@ -113,7 +115,17 @@ export default function ReportApp() {
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock Report</span>
         </div>
-        <span className="sh-pill sh-pill--brand">{report.issueId}</span>
+        <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {report.caseKey ?? report.issueId}
+          <CopyOutlined
+            style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
+            onClick={() => {
+              navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
+                message.success('Copied');
+              });
+            }}
+          />
+        </span>
       </header>
 
       <Tabs
@@ -149,9 +161,6 @@ export default function ReportApp() {
                         {report.expectedResult}
                       </Descriptions.Item>
                     )}
-                    <Descriptions.Item label="Severity">
-                      {report.severity ?? '-'}
-                    </Descriptions.Item>
                     <Descriptions.Item label="Status">
                       {report.status ? (
                         <Tag color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? 'green' : 'default'}>
@@ -341,7 +350,7 @@ export default function ReportApp() {
           },
           {
             key: 'root-cause',
-            label: `Root Cause(${report.diagnosis?.findings.length ?? 0})`,
+            label: `Root Cause(${rootCauseCount(report.diagnosis)})`,
             children: report.diagnosis ? (
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
                 {report.diagnosis.findings.map((f) => (
@@ -349,35 +358,58 @@ export default function ReportApp() {
                     key={f.id}
                     size="small"
                     title={
-                      <Space>
-                        {f.type && <Tag color="blue">{f.type}</Tag>}
-                        {f.severity && (
-                          <Tag
-                            color={
-                              f.severity === 'HIGH'
-                                ? 'red'
-                                : f.severity === 'MEDIUM'
-                                  ? 'orange'
-                                  : 'green'
-                            }
-                          >
-                            {f.severity}
-                          </Tag>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ flex: 1, wordBreak: 'break-word', whiteSpace: 'normal', minWidth: 0 }}>{f.title ?? f.id}</span>
+                        {(f.type || f.severity) && (
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {f.type && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: '#e6f4ff',
+                                color: '#1677ff',
+                                letterSpacing: 0.5,
+                              }}>
+                                {f.type}
+                              </span>
+                            )}
+                            {f.severity && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: f.severity === 'HIGH' ? '#fff1f0' : f.severity === 'MEDIUM' ? '#fff7e6' : '#f6ffed',
+                                color: f.severity === 'HIGH' ? '#cf1322' : f.severity === 'MEDIUM' ? '#d46b08' : '#389e0d',
+                              }}>
+                                {f.severity}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        <span>{f.title ?? f.id}</span>
-                      </Space>
+                      </div>
                     }
                   >
                     {f.rootCause && (
                       <div style={{ marginBottom: f.recommendedFix ? 8 : 0 }}>
-                        <b>Root cause: </b>
-                        {f.rootCause}
+                        <b>Root cause</b>
+                        {splitSentences(f.rootCause).map((s, i) => (
+                          <div key={i} style={{ wordBreak: 'break-word' }}>
+                            {s}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {f.recommendedFix && (
                       <div>
-                        <b>Recommended fix: </b>
-                        {f.recommendedFix}
+                        <b>Recommended fix</b>
+                        {splitSentences(f.recommendedFix).map((s, i) => (
+                          <div key={i} style={{ wordBreak: 'break-word' }}>
+                            {s}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {f.file && (
@@ -389,29 +421,11 @@ export default function ReportApp() {
                     )}
                   </Card>
                 ))}
-                {report.diagnosis.caseSummary && (
-                  <div
-                    style={{
-                      background: 'var(--sh-sunken)',
-                      padding: 12,
-                      borderRadius: 4,
-                      fontSize: 13,
-                      lineHeight: 1.9,
-                    }}
-                  >
-                    {splitSentences(report.diagnosis.caseSummary).map((s, i) => (
-                      <div key={i} style={{ wordBreak: 'break-word' }}>
-                        {s}
-                      </div>
-                    ))}
+                {report.diagnosis.findings.length === 0 && (
+                  <div style={{ color: 'var(--sh-muted)' }}>
+                    No root cause analysis available yet.
                   </div>
                 )}
-                {!report.diagnosis.caseSummary &&
-                  report.diagnosis.findings.length === 0 && (
-                    <div style={{ color: 'var(--sh-muted)' }}>
-                      No root cause analysis available yet.
-                    </div>
-                  )}
               </Space>
             ) : (
               <div style={{ color: 'var(--sh-muted)' }}>
@@ -423,6 +437,12 @@ export default function ReportApp() {
       />
     </div>
   );
+}
+
+/** 有 findings 按 findings 计数；没有但分析有总结文本也算 1 条结果 */
+function rootCauseCount(d: IssuePackage['diagnosis']): number {
+  if (!d) return 0;
+  return d.findings.length;
 }
 
 /** 按句子边界拆分诊断文本，避免长文挤成一坨 */

@@ -1,13 +1,14 @@
 // Side Panel：编辑器式提报面板
 // 流程：截图 -> 页面内微信式批注（不弹新窗口）-> 成图内嵌；Record -> 确认内嵌；提交打印 payload
 // 未提交内容（标题/描述/截图/录制）自动存 IndexedDB，面板重开后可恢复
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Modal, Space, Spin, Tag, message } from 'antd';
 import {
   CameraOutlined,
   CheckCircleFilled,
   CheckOutlined,
   CloseOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   SendOutlined,
@@ -16,7 +17,7 @@ import {
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
 import { sendRuntime, uid, type CaptureResult } from '../../core/messages';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
-import type { AnnotatedShot, IssuePackage, SidebarDraft } from '../../core/types';
+import { isPendingVerifyStatus, type AnnotatedShot, type IssuePackage, type SidebarDraft } from '../../core/types';
 
 interface RecordInfo {
   seconds: number;
@@ -30,12 +31,92 @@ function isResolvedStatus(status?: string): boolean {
   return ['DIAGNOSED', 'VERIFIED', 'VERIFY_SUCCESS', 'COMPLETED'].includes(s);
 }
 
+// 验证通过（VERIFIED/COMPLETED）即归档，见 docs/issue-status-standard.md
+function isArchivedStatus(status?: string): boolean {
+  const s = status?.toUpperCase() ?? '';
+  return ['VERIFIED', 'VERIFY_SUCCESS', 'COMPLETED'].includes(s);
+}
+
 function statusColor(status?: string): string {
   const s = status?.toUpperCase() ?? '';
+  if (isPendingVerifyStatus(s)) return 'red';
   if (isResolvedStatus(s)) return 'green';
   if (s === 'FAILED') return 'red';
   if (s === 'DIAGNOSING') return 'orange';
   return 'blue';
+}
+
+function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loading: boolean; emptyText: string }) {
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>;
+  }
+  if (list.length === 0) {
+    return <div style={{ textAlign: 'center', padding: 32, color: '#999', fontSize: 16 }}>{emptyText}</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {list.map((c) => {
+        const pending = isPendingVerifyStatus(c.status);
+        return (
+          <div
+            key={c.issueId}
+            onClick={async () => {
+              if (c.caseKey) {
+                await sendRuntime({ type: 'fetch-case-detail', caseKey: c.caseKey });
+              }
+              const reportUrl = chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`);
+              const [existing] = await chrome.tabs.query({ url: reportUrl });
+              if (existing?.id) {
+                await chrome.tabs.update(existing.id, { active: true });
+                if (existing.windowId) {
+                  await chrome.windows.update(existing.windowId, { focused: true });
+                }
+                await chrome.tabs.reload(existing.id);
+              } else {
+                chrome.tabs.create({ url: reportUrl });
+              }
+            }}
+            style={{
+              padding: 16,
+              border: `1px solid ${pending ? '#ff4d4f' : '#e8e8e8'}`,
+              borderRadius: 12,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: pending ? '#fff1f0' : '#fff',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#B4E968';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(180,233,104,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = pending ? '#ff4d4f' : '#e8e8e8';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{c.title || 'Untitled'}</div>
+            <div style={{ fontSize: 12, color: '#666', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {c.caseKey ?? c.issueId}
+                {(c.caseKey || c.issueId) && (
+                  <CopyOutlined
+                    style={{ cursor: 'pointer', color: '#999' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(c.caseKey ?? c.issueId).then(() => {
+                        message.success('Copied');
+                      });
+                    }}
+                  />
+                )}
+              </span>
+              <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
+              <Tag color={statusColor(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function App() {
@@ -53,11 +134,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('submit');
   const [cases, setCases] = useState<IssuePackage[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [pendingVerifyCount, setPendingVerifyCount] = useState(0);
   const [successInfo, setSuccessInfo] = useState<{ caseKey?: string } | null>(null);
-  const unverifiedCount = useMemo(
-    () => cases.filter((c) => !isResolvedStatus(c.status)).length,
-    [cases]
-  );
   const recordTimerRef = useRef<number | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -87,14 +165,6 @@ export default function App() {
           setText(draft.description);
           setShots(draft.shots ?? []);
           setRecordInfo(draft.record ?? null);
-          if (
-            draft.title ||
-            draft.description ||
-            draft.shots?.length ||
-            draft.record
-          ) {
-            message.info('Restored your unsent draft');
-          }
         }
         setDraftReady(true);
       })
@@ -125,24 +195,58 @@ export default function App() {
     };
   }, [draftReady, title, text, shots, recordInfo]);
 
-  // 加载 Case 列表（每次切到 Cases tab 都从后端同步最新状态）
-  useEffect(() => {
-    if (activeTab === 'cases') {
-      setCasesLoading(true);
-      sendRuntime<{ ok: boolean; cases?: IssuePackage[]; error?: string }>({
-        type: 'fetch-cases',
+  // 加载 Case 列表（打开面板 + 每次切到 Cases/Archive tab 都从后端同步最新状态；轮询每轮只拉一次）
+  // 已有数据时静默刷新，旧列表原地保留，避免切 Tab 闪 Loading
+  const refreshCases = () => {
+    if (cases.length === 0) setCasesLoading(true);
+    const apply = (list: IssuePackage[]) => {
+      setCases(list);
+      const count = list.filter((c) => isPendingVerifyStatus(c.status)).length;
+      setPendingVerifyCount(count);
+      chrome.storage.local.set({ pendingVerifyCount: count });
+    };
+    sendRuntime<{ ok: boolean; cases?: IssuePackage[]; error?: string }>({
+      type: 'fetch-cases',
+    })
+      .then((resp) => {
+        if (resp?.ok && resp.cases) {
+          apply(resp.cases);
+        } else {
+          return loadCases().then(apply);
+        }
       })
-        .then((resp) => {
-          if (resp?.ok && resp.cases) {
-            setCases(resp.cases);
-          } else {
-            return loadCases().then(setCases);
-          }
-        })
-        .catch(() => loadCases().then(setCases))
-        .finally(() => setCasesLoading(false));
-    }
+      .catch(() => loadCases().then(apply))
+      .finally(() => setCasesLoading(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'cases' || activeTab === 'archive') refreshCases();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // 打开面板拉一次列表；待验证数量由后台轮询写入 storage，这里监听变化实时更新红点
+  useEffect(() => {
+    refreshCases();
+    chrome.storage.local
+      .get('pendingVerifyCount')
+      .then((r) => {
+        if (typeof r.pendingVerifyCount === 'number') {
+          setPendingVerifyCount(r.pendingVerifyCount);
+        }
+      })
+      .catch(() => {});
+    const listener = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area === 'local' && typeof changes.pendingVerifyCount?.newValue === 'number') {
+        setPendingVerifyCount(changes.pendingVerifyCount.newValue);
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendToTab = async (
     type:
@@ -300,24 +404,39 @@ export default function App() {
 
   return (
     <div className="editor-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* 品牌头 + Tab */}
-      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+      {/* 品牌头 + Tab：Logo 与 Tab 垂直居中；Tab 轨道贴右、底部与内容区相连 */}
+      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0 0' }}>
         <div className="sh-brand">
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 3,
+            alignSelf: 'flex-end',
+            padding: 3,
+            marginRight: -16,
+            border: '1px solid var(--sh-line)',
+            borderBottom: 'none',
+            borderRadius: '10px 10px 0 0',
+            background: 'var(--sh-sunken)',
+          }}
+        >
           <button
             onClick={() => setActiveTab('submit')}
             style={{
-              padding: '6px 16px',
-              borderRadius: 20,
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 22px',
               border: 'none',
+              borderRadius: 8,
+              background: activeTab === 'submit' ? '#fff' : 'transparent',
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 16,
               fontWeight: activeTab === 'submit' ? 600 : 400,
-              background: activeTab === 'submit' ? '#B4E968' : 'var(--sh-sunken)',
-              color: activeTab === 'submit' ? 'var(--sh-brand-ink)' : 'var(--sh-text)',
+              color: activeTab === 'submit' ? 'var(--sh-accent)' : 'var(--sh-muted)',
+              boxShadow: activeTab === 'submit' ? '0 1px 3px rgba(23, 36, 12, 0.12)' : 'none',
               transition: 'all 0.2s',
             }}
           >
@@ -326,24 +445,27 @@ export default function App() {
           <button
             onClick={() => setActiveTab('cases')}
             style={{
-              padding: '6px 16px',
-              borderRadius: 20,
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 22px',
               border: 'none',
+              borderRadius: 8,
+              background: activeTab === 'cases' ? '#fff' : 'transparent',
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 16,
               fontWeight: activeTab === 'cases' ? 600 : 400,
-              background: activeTab === 'cases' ? '#B4E968' : 'var(--sh-sunken)',
-              color: activeTab === 'cases' ? 'var(--sh-brand-ink)' : 'var(--sh-text)',
+              color: activeTab === 'cases' ? 'var(--sh-accent)' : 'var(--sh-muted)',
+              boxShadow: activeTab === 'cases' ? '0 1px 3px rgba(23, 36, 12, 0.12)' : 'none',
               transition: 'all 0.2s',
               position: 'relative',
             }}
           >
             Cases
-            {unverifiedCount > 0 && (
+            {pendingVerifyCount > 0 && (
               <span style={{
                 position: 'absolute',
-                top: -4,
-                right: -4,
+                top: -6,
+                right: -8,
                 background: '#ff4d4f',
                 color: '#fff',
                 fontSize: 10,
@@ -352,9 +474,28 @@ export default function App() {
                 minWidth: 16,
                 textAlign: 'center',
               }}>
-                {unverifiedCount}
+                {pendingVerifyCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab('archive')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 22px',
+              border: 'none',
+              borderRadius: 8,
+              background: activeTab === 'archive' ? '#fff' : 'transparent',
+              cursor: 'pointer',
+              fontSize: 16,
+              fontWeight: activeTab === 'archive' ? 600 : 400,
+              color: activeTab === 'archive' ? 'var(--sh-accent)' : 'var(--sh-muted)',
+              boxShadow: activeTab === 'archive' ? '0 1px 3px rgba(23, 36, 12, 0.12)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            Archive
           </button>
         </div>
       </header>
@@ -541,54 +682,17 @@ export default function App() {
 
           {activeTab === 'cases' && (
             <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-              {casesLoading ? (
-                <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>
-              ) : cases.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-                  <div>No cases yet</div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {cases.map((c) => (
-                    <div
-                      key={c.issueId}
-                      onClick={async () => {
-                        if (c.caseKey) {
-                          await sendRuntime({ type: 'fetch-case-detail', caseKey: c.caseKey });
-                        }
-                        chrome.tabs.create({
-                          url: chrome.runtime.getURL(`/report.html?caseId=${c.issueId}`),
-                        });
-                      }}
-                      style={{
-                        padding: 16,
-                        border: '1px solid #e8e8e8',
-                        borderRadius: 12,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        background: '#fff',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#B4E968';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(180,233,104,0.3)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#e8e8e8';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{c.title || 'Untitled'}</div>
-                      <div style={{ fontSize: 12, color: '#666', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'monospace' }}>{c.caseKey ?? c.issueId}</span>
-                        <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
-                        <Tag color={statusColor(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
-                        {c.severity && <Tag color={c.severity === 'high' ? 'red' : c.severity === 'medium' ? 'orange' : 'green'}>{c.severity}</Tag>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <CaseListPanel list={cases} loading={casesLoading} emptyText="No cases yet" />
+            </div>
+          )}
+
+          {activeTab === 'archive' && (
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              <CaseListPanel
+                list={cases.filter((c) => isArchivedStatus(c.status))}
+                loading={casesLoading}
+                emptyText="No archived cases"
+              />
             </div>
           )}
 
