@@ -1,7 +1,7 @@
 /** 域模型与 PRD（docs/middle-platform-prd.html）§2 / §11 表结构对齐 */
 
 /** @deprecated Use NewRole instead */
-export type Role = 'ADMIN' | 'PROJECT_OWNER' | 'DEVELOPER';
+export type Role = 'ADMIN' | 'PROJECT_OWNER' | 'DEVELOPER' | 'OWNER' | 'STAFF';
 
 /** 新角色模型（docs/backend-admin-requirements.md §2） */
 export type NewRole = 'ADMIN' | 'OWNER' | 'STAFF';
@@ -22,7 +22,8 @@ export interface User {
   groupIds: string[];
   status: UserStatus;
   /** Owner 可管理的项目（project.id）；ADMIN 隐式为全部 */
-  managedProjectIds: string[];
+  managedProjectIds?: string[];
+  staffType?: StaffType;
   lastLoginAt: string;
   createdAt: string;
 }
@@ -251,6 +252,22 @@ export interface Evidence {
   ref?: string;
 }
 
+/** @deprecated Legacy finding shape for old Case model; new code uses Finding */
+export interface LegacyFinding {
+  id: string;
+  findingKey: string;
+  type: FindingType;
+  title: string;
+  rootCause: string;
+  aiConfidence: number;
+  systemConfidence: number;
+  verificationStatus: 'AI_SUGGESTED' | 'VERIFIED';
+  locations: { file: string; line: number }[];
+  recommendedFix: string;
+  evidenceIds: string[];
+  jiraKey: string;
+}
+
 /** §13.3 Case 详情 */
 /** @deprecated Use CaseV2 instead */
 export interface Case {
@@ -270,22 +287,22 @@ export interface Case {
   consoleLogs: Evidence[];
   stacks: Evidence[];
   evidenceChain: { node: string; label: string }[];
-  findings: Finding[];
+  findings: LegacyFinding[];
 }
 
-/** Case 生命周期状态（docs/backend-admin-requirements.md §6） */
+/** Case 生命周期状态（docs/case-lifecycle-architecture-design.md §5） */
 export type CaseStatus =
-  | 'PENDING'      // 未开始
-  | 'ANALYZING'    // 分析中
-  | 'ANALYZED'     // 分析完成
-  | 'DEVELOPING'   // 开发中
-  | 'DEPLOYING'    // 部署中
-  | 'DEPLOYED'     // 部署完成
-  | 'VERIFYING'    // 验证中
-  | 'VERIFIED'     // 验证通过
-  | 'FAILED';      // 验证失败
+  | 'PENDING_ANALYSIS'     // 待开始
+  | 'ANALYZING'            // 分析中
+  | 'ANALYSIS_COMPLETED'   // 分析结束
+  | 'DEVELOPING'           // 开发中
+  | 'DEPLOYING'            // 部署中
+  | 'DEPLOY_FAILED'        // 部署失败
+  | 'DEPLOYED'             // 部署完成
+  | 'PENDING_VERIFICATION' // 待验证
+  | 'COMPLETED';           // 验证通过/已完成
 
-/** 新 Case 模型（docs/backend-admin-requirements.md §6） */
+/** Case 聚合模型（docs/case-lifecycle-architecture-design.md §4） */
 export interface CaseV2 {
   id: string;
   caseKey: string;
@@ -294,6 +311,7 @@ export interface CaseV2 {
   title: string;
   description: string;
   status: CaseStatus;
+  currentCycleId: string;
   assigneeId?: string;
   environment: Environment;
   severity: Severity;
@@ -302,27 +320,245 @@ export interface CaseV2 {
   reporter: string;
   reportedAt: string;
   updatedAt: string;
+  version: number;
+  currentCycle: CaseCycle;
+  cycles: CaseCycle[];
+  currentRevision: CaseRevision;
+  revisions: CaseRevision[];
+  findings: Finding[];
+  pullRequests: PullRequest[];
+  deploymentRuns: DeploymentRun[];
+  verificationRecords: VerificationRecord[];
+  mergeBatches: MergeBatch[];
+  diagnosisRuns: DiagnosisRun[];
   network: Evidence[];
   consoleLogs: Evidence[];
   stacks: Evidence[];
   evidenceChain: { node: string; label: string }[];
-  findings: Finding[];
 }
 
-/** §7.3 Finding */
+/** Finding 分析状态（§4.4） */
+export type FindingAnalysisStatus = 'DRAFT' | 'ACCEPTED';
+
+/** Finding 处理方式（§4.4） */
+export type FindingResolutionType = 'MANUAL_FIX' | 'AUTO_FIX' | 'IGNORE';
+
+/** Finding 处理进展（§4.4） */
+export type FindingResolutionStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'READY_TO_MERGE'
+  | 'COMPLETED'
+  | 'FAILED';
+
+/** Finding 来源 */
+export type FindingSource = 'DEVIN' | 'MANUAL' | 'AI_RECOMMENDED';
+
+/** §4.4 Finding — 三态：analysisStatus / resolutionType / resolutionStatus */
 export interface Finding {
   id: string;
   findingKey: string;
+  caseId: string;
+  caseCycleId: string;
+  carriedFromFindingId?: string;
+  primaryApplicationId: string;
+  primaryRepositoryId?: string;
   type: FindingType;
+  source: FindingSource;
+  title: string;
+  analysisStatus: FindingAnalysisStatus;
+  resolutionType?: FindingResolutionType;
+  resolutionStatus: FindingResolutionStatus;
+  isCurrent: boolean;
+  currentRevisionId: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  currentRevision: FindingRevision;
+  revisions: FindingRevision[];
+  comments: FindingComment[];
+  fixAttempts: FixAttempt[];
+  pullRequests: FindingPullRequest[];
+}
+
+/** §4.2 Case Cycle — 一次从分析到验证的完整处理轮次 */
+export interface CaseCycle {
+  id: string;
+  caseId: string;
+  cycleNo: number;
+  status: 'ACTIVE' | 'CLOSED';
+  openedReason?: string;
+  openedBy?: string;
+  openedAt: string;
+  closedAt?: string;
+}
+
+/** §4.3 Case Revision — Case 标题/描述的版本历史 */
+export interface CaseRevision {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  revisionNo: number;
+  title: string;
+  description: string;
+  changedBy: string;
+  changeReason?: string;
+  createdAt: string;
+}
+
+/** §4.5 Finding Revision — Finding 诊断的不可变版本 */
+export interface FindingRevision {
+  id: string;
+  findingId: string;
+  caseCycleId: string;
+  revisionNo: number;
+  diagnosisRunId?: string;
   title: string;
   rootCause: string;
-  aiConfidence: number;
-  systemConfidence: number;
-  verificationStatus: 'VERIFIED' | 'AI_SUGGESTED' | 'INVALID_REFERENCE';
-  locations: { file: string; line: number }[];
-  recommendedFix: string;
-  evidenceIds: string[];
-  jiraKey?: string;
+  recommendation: string;
+  confidence: number;
+  payload?: unknown;
+  status: 'CURRENT' | 'SUPERSEDED';
+  createdAt: string;
+}
+
+/** §4.5 Finding Comment — 用户与 Devin 的对话消息 */
+export interface FindingComment {
+  id: string;
+  findingId: string;
+  caseCycleId: string;
+  authorType: 'USER' | 'DEVIN' | 'SYSTEM';
+  authorUserId?: string;
+  content: string;
+  diagnosisRunId?: string;
+  createdAt: string;
+}
+
+/** §4.6 Diagnosis Run — 诊断或 Auto Fix 执行记录 */
+export interface DiagnosisRun {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  mode: 'DIAGNOSE' | 'IMPLEMENT_CHANGE';
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  caseRevisionId?: string;
+  provider: string;
+  providerSessionId?: string;
+  result?: unknown;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** §4.7 Fix Attempt — 一次具体修复尝试 */
+export interface FixAttempt {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  primaryFindingId: string;
+  diagnosisRunId?: string;
+  attemptNo: number;
+  provider: string;
+  providerSessionId?: string;
+  instructions?: string;
+  approvalPolicy: 'MANUAL';
+  approvalStatus: 'APPROVED';
+  approvedBy?: string;
+  executionStatus:
+    | 'QUEUED'
+    | 'IMPLEMENTING'
+    | 'PR_CREATED'
+    | 'NO_CHANGE'
+    | 'FAILED'
+    | 'TIMED_OUT'
+    | 'NEEDS_ATTENTION';
+  idempotencyKey: string;
+  result?: unknown;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** §4.8 Pull Request — GitHub PR 主数据 */
+export interface PullRequest {
+  id: string;
+  provider: string;
+  repositoryId: string;
+  externalId: string;
+  number: number;
+  url: string;
+  sourceBranch: string;
+  targetBranch: string;
+  headSha: string;
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  draft: boolean;
+  mergeableState: string;
+  checksStatus: 'PENDING' | 'PASSING' | 'FAILING';
+  reviewStatus: 'PENDING' | 'APPROVED' | 'CHANGES_REQUESTED';
+  branchProtectionStatus: 'SATISFIED' | 'NOT_SATISFIED' | 'UNKNOWN';
+  originType: 'DEVIN' | 'MANUAL';
+  originFixAttemptId?: string;
+  mergedSha?: string;
+  mergedAt?: string;
+  lastSyncedAt?: string;
+}
+
+/** §4.8 Finding-PullRequest 关联 */
+export interface FindingPullRequest {
+  id: string;
+  caseCycleId: string;
+  findingId: string;
+  pullRequestId: string;
+  relationType: 'PRIMARY' | 'INCLUDED';
+  source: 'DEVIN' | 'MANUAL' | 'USER_CONFIRMED';
+  findingRevisionId?: string;
+  isCurrent: boolean;
+  linkedBy?: string;
+  createdAt: string;
+  pullRequest: PullRequest;
+}
+
+/** §4.9 Deployment Run — 每个仓库独立的部署执行 */
+export interface DeploymentRun {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  repositoryId: string;
+  environment: Environment;
+  workflowName?: string;
+  externalRunId?: string;
+  commitSha?: string;
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  attemptNo: number;
+  url?: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+/** §5 验证记录 — Tester 验证通过/失败 */
+export interface VerificationRecord {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  result: 'PASSED' | 'FAILED';
+  comment?: string;
+  verifiedBy: string;
+  createdAt: string;
+}
+
+/** §5.4 Merge Batch — 非原子合并批次 */
+export interface MergeBatch {
+  id: string;
+  caseId: string;
+  caseCycleId: string;
+  requestedBy: string;
+  status: 'REQUESTED' | 'QUEUING' | 'PARTIAL' | 'COMPLETED' | 'FAILED';
+  createdAt: string;
+  pullRequestResults: {
+    pullRequestId: string;
+    status: 'QUEUED' | 'MERGED' | 'FAILED';
+    reason?: string;
+  }[];
 }
 
 export interface AuditLogItem {
@@ -349,9 +585,12 @@ export interface DashboardOverview {
   diagnosisRate: { value: number; delta: number };
   avgDuration: { value: number; delta: number };
   autoFixRate: { value: number; delta: number };
-  trend: { date: string; case: number; finding: number; jira: number }[];
+  pendingAnalysis: number;
+  pendingVerification: number;
+  deployFailed: number;
+  trend: { date: string; case: number; finding: number; pr: number; deployment: number }[];
   topServices: { name: string; count: number; percent: number }[];
-  stageDistribution: { stage: Stage; count: number }[];
+  statusDistribution: { status: CaseStatus; count: number }[];
 }
 
 /** 配置校验（PRD §5.2）逐项结果 */

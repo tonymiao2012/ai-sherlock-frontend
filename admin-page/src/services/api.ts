@@ -4,19 +4,28 @@ import type {
   CaseStatus,
   CaseV2,
   DashboardOverview,
+  DiagnosisRun,
+  Finding,
+  FindingResolutionType,
+  FixAttempt,
   Group,
   GroupV2,
   JiraStatus,
+  MergeBatch,
   Project,
+  PullRequest,
   Repository,
   Role,
   SyncResult,
   Ticket,
   User,
+  VerificationRecord,
 } from '../types';
 import { JIRA_STATUS_FLOW, stageOf } from '../domain/ticket';
 import { canTransition } from '../domain/caseLifecycle';
-import { AUDIT_LOGS, CASES_V2, GROUPS, GROUPS_V2, PROJECTS, TICKETS, USERS, buildCase } from './mockData';
+import {
+  AUDIT_LOGS, CASES_V2, GROUPS, GROUPS_V2, PROJECTS, TICKETS, USERS, buildCase,
+} from './mockData';
 
 /**
  * 接口层：签名与 PRD §12 API 契约一致（/projects、/projects/{key}/tickets、/dashboard/overview…）。
@@ -75,7 +84,7 @@ export async function createProject(input: Project, actor: string): Promise<Proj
   const project = { ...input, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   projects = [project, ...projects];
   const owner = users.find((u) => u.id === project.ownerId);
-  if (owner && !owner.managedProjectIds.includes(project.id)) owner.managedProjectIds.push(project.id);
+  if (owner && !owner.managedProjectIds?.includes(project.id)) owner.managedProjectIds = [...(owner.managedProjectIds ?? []), project.id];
   log(actor, 'PROJECT_CREATE', project.projectKey, `Owner：${owner?.email ?? '—'}，授权组 ${project.access.groupIds.length} 个`);
   return clone(project);
 }
@@ -197,6 +206,398 @@ export async function changeCaseStatus(
   caseItem.updatedAt = new Date().toISOString();
   log(actor, 'CASE_STATUS_CHANGE', caseItem.caseKey, `${oldStatus} → ${newStatus}`);
   return clone(caseItem);
+}
+
+/* -------------------- CaseV2 详情 -------------------- */
+
+export async function getCaseV2(caseId: string): Promise<CaseV2 | undefined> {
+  await sleep(120);
+  const c = casesV2.find((x) => x.id === caseId);
+  return c ? clone(c) : undefined;
+}
+
+export async function updateCase(caseId: string, patch: Partial<CaseV2>, actor: string): Promise<CaseV2> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  Object.assign(c, patch, { updatedAt: new Date().toISOString() });
+  log(actor, 'CASE_UPDATE', c.caseKey, Object.keys(patch).join('、'));
+  return clone(c);
+}
+
+/* -------------------- 诊断 -------------------- */
+
+export async function triggerDiagnosis(caseId: string, actor: string): Promise<DiagnosisRun> {
+  await sleep(800);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const run: DiagnosisRun = {
+    id: `dr_${Date.now()}`,
+    caseId,
+    caseCycleId: c.currentCycleId,
+    mode: 'DIAGNOSE',
+    status: 'COMPLETED',
+    provider: 'DEVIN',
+    providerSessionId: `sess_${Date.now()}`,
+    caseRevisionId: c.currentRevision?.id,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  c.diagnosisRuns.push(run);
+  if (c.status === 'PENDING_ANALYSIS') {
+    c.status = 'ANALYZING';
+    // 模拟 AI 生成 2 个 Finding
+    const now = new Date().toISOString();
+    const findings: Finding[] = [
+      {
+        id: `f_${Date.now()}_1`,
+        findingKey: `FND-${c.findings.length + 1}`,
+        caseId,
+        caseCycleId: c.currentCycleId,
+        primaryApplicationId: caseId,
+        type: 'FRONTEND',
+        source: 'AI_RECOMMENDED',
+        title: '文件上传组件缺少错误处理',
+        analysisStatus: 'DRAFT',
+        resolutionStatus: 'NOT_STARTED',
+        isCurrent: true,
+        currentRevisionId: `fr_${Date.now()}_1`,
+        createdBy: 'system',
+        createdAt: now,
+        updatedAt: now,
+        currentRevision: {
+          id: `fr_${Date.now()}_1`,
+          findingId: `f_${Date.now()}_1`,
+          caseCycleId: c.currentCycleId,
+          revisionNo: 1,
+          title: '文件上传组件缺少错误处理',
+          rootCause: '上传接口未处理网络超时和文件过大异常',
+          recommendation: '添加 try-catch 和文件大小校验',
+          confidence: 0.92,
+          status: 'CURRENT',
+          createdAt: now,
+        },
+        revisions: [],
+        comments: [],
+        fixAttempts: [],
+        pullRequests: [],
+      },
+      {
+        id: `f_${Date.now()}_2`,
+        findingKey: `FND-${c.findings.length + 2}`,
+        caseId,
+        caseCycleId: c.currentCycleId,
+        primaryApplicationId: caseId,
+        type: 'FRONTEND',
+        source: 'AI_RECOMMENDED',
+        title: 'Loading 状态未正确清除',
+        analysisStatus: 'DRAFT',
+        resolutionStatus: 'NOT_STARTED',
+        isCurrent: true,
+        currentRevisionId: `fr_${Date.now()}_2`,
+        createdBy: 'system',
+        createdAt: now,
+        updatedAt: now,
+        currentRevision: {
+          id: `fr_${Date.now()}_2`,
+          findingId: `f_${Date.now()}_2`,
+          caseCycleId: c.currentCycleId,
+          revisionNo: 1,
+          title: 'Loading 状态未正确清除',
+          rootCause: '异步操作完成后未重置 loading 状态',
+          recommendation: '在 finally 块中设置 setLoading(false)',
+          confidence: 0.88,
+          status: 'CURRENT',
+          createdAt: now,
+        },
+        revisions: [],
+        comments: [],
+        fixAttempts: [],
+        pullRequests: [],
+      },
+    ];
+    findings.forEach((f) => {
+      f.revisions = [f.currentRevision];
+      c.findings.push(f);
+    });
+    c.status = 'ANALYSIS_COMPLETED';
+  }
+  c.updatedAt = new Date().toISOString();
+  log(actor, 'DIAGNOSIS_TRIGGER', c.caseKey, `mode=DIAGNOSE → ${run.status}, 生成 ${c.findings.length} 个 Finding`);
+  return clone(run);
+}
+
+export async function listDiagnosisRuns(caseId: string): Promise<DiagnosisRun[]> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  return clone(c?.diagnosisRuns ?? []);
+}
+
+/* -------------------- Finding -------------------- */
+
+export async function listFindings(caseId: string): Promise<Finding[]> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  return clone(c?.findings ?? []);
+}
+
+export async function createManualFinding(
+  caseId: string,
+  input: { title: string; type: Finding['type']; rootCause: string; recommendation: string },
+  actor: string,
+): Promise<Finding> {
+  await sleep(300);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const now = new Date().toISOString();
+  const revId = `fr_${Date.now()}`;
+  const finding: Finding = {
+    id: `f_${Date.now()}`,
+    findingKey: `FND-${c.findings.length + 1}`,
+    caseId,
+    caseCycleId: c.currentCycleId,
+    primaryApplicationId: caseId,
+    type: input.type,
+    source: 'MANUAL',
+    title: input.title,
+    analysisStatus: 'DRAFT',
+    resolutionStatus: 'NOT_STARTED',
+    isCurrent: true,
+    currentRevisionId: revId,
+    createdBy: actor,
+    createdAt: now,
+    updatedAt: now,
+    currentRevision: {
+      id: revId, findingId: `f_${Date.now()}`, caseCycleId: c.currentCycleId,
+      revisionNo: 1, title: input.title, rootCause: input.rootCause,
+      recommendation: input.recommendation, confidence: 1.0,
+      status: 'CURRENT', createdAt: now,
+    },
+    revisions: [],
+    comments: [],
+    fixAttempts: [],
+    pullRequests: [],
+  };
+  finding.revisions = [finding.currentRevision];
+  c.findings.push(finding);
+  c.updatedAt = now;
+  log(actor, 'FINDING_CREATE', c.caseKey, `人工 Finding: ${input.title}`);
+  return clone(finding);
+}
+
+export async function acceptFinding(caseId: string, findingId: string, actor: string): Promise<Finding> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  f.analysisStatus = 'ACCEPTED';
+  f.updatedAt = new Date().toISOString();
+  c.updatedAt = f.updatedAt;
+  log(actor, 'FINDING_ACCEPT', c.caseKey, f.findingKey);
+  return clone(f);
+}
+
+export async function addFindingComment(
+  caseId: string, findingId: string, content: string, actor: string,
+): Promise<void> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  f.comments.push({
+    id: `fc_${Date.now()}`, findingId, caseCycleId: c.currentCycleId,
+    authorType: 'USER', authorUserId: actor, content,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function reDiagnoseFinding(caseId: string, findingId: string, actor: string): Promise<DiagnosisRun> {
+  await sleep(800);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  const run: DiagnosisRun = {
+    id: `dr_${Date.now()}`, caseId, caseCycleId: c.currentCycleId,
+    mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN',
+    providerSessionId: `sess_${Date.now()}`,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  c.diagnosisRuns.push(run);
+  log(actor, 'FINDING_REDIAGNOSE', c.caseKey, f.findingKey);
+  return clone(run);
+}
+
+export async function resolveFinding(
+  caseId: string, findingId: string,
+  resolutionType: FindingResolutionType, actor: string,
+): Promise<Finding> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  if (f.analysisStatus !== 'ACCEPTED') f.analysisStatus = 'ACCEPTED';
+  f.resolutionType = resolutionType;
+  if (resolutionType === 'IGNORE') f.resolutionStatus = 'COMPLETED';
+  f.updatedAt = new Date().toISOString();
+  c.updatedAt = f.updatedAt;
+  log(actor, 'FINDING_RESOLVE', c.caseKey, `${f.findingKey} → ${resolutionType}`);
+  return clone(f);
+}
+
+/* -------------------- Auto Fix -------------------- */
+
+export async function triggerAutoFix(caseId: string, findingId: string, actor: string): Promise<void> {
+  await sleep(1200);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  f.resolutionType = 'AUTO_FIX';
+  f.resolutionStatus = 'IN_PROGRESS';
+  f.fixAttempts.push({
+    id: `fa_${Date.now()}`, caseId, caseCycleId: c.currentCycleId,
+    primaryFindingId: findingId, attemptNo: f.fixAttempts.length + 1,
+    provider: 'DEVIN', providerSessionId: `fix_${Date.now()}`,
+    approvalPolicy: 'MANUAL', approvalStatus: 'APPROVED',
+    approvedBy: actor, executionStatus: 'PR_CREATED',
+    idempotencyKey: `idem_${Date.now()}`,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  });
+  f.updatedAt = new Date().toISOString();
+  c.updatedAt = f.updatedAt;
+  log(actor, 'AUTOFIX_TRIGGER', c.caseKey, f.findingKey);
+}
+
+export async function listFixAttempts(caseId: string, findingId: string): Promise<FixAttempt[]> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) return [];
+  const all = c.findings.flatMap((f) => f.fixAttempts);
+  return clone(findingId ? all.filter((a) => a.primaryFindingId === findingId) : all);
+}
+
+/* -------------------- PR -------------------- */
+
+export async function registerManualPullRequest(
+  caseId: string, findingId: string,
+  input: { url: string; sourceBranch: string; targetBranch: string },
+  actor: string,
+): Promise<PullRequest> {
+  await sleep(300);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const f = c.findings.find((x) => x.id === findingId);
+  if (!f) throw new Error(`Finding not found: ${findingId}`);
+  const pr: PullRequest = {
+    id: `pr_${Date.now()}`, provider: 'BITBUCKET', repositoryId: '',
+    externalId: String(Date.now()), number: Math.floor(Math.random() * 9000) + 1000,
+    url: input.url, sourceBranch: input.sourceBranch, targetBranch: input.targetBranch,
+    headSha: `sha_${Date.now()}`, state: 'OPEN', draft: false,
+    mergeableState: 'CLEAN', checksStatus: 'PENDING', reviewStatus: 'PENDING',
+    branchProtectionStatus: 'UNKNOWN', originType: 'MANUAL',
+    lastSyncedAt: new Date().toISOString(),
+  };
+  c.pullRequests.push(pr);
+  f.pullRequests.push({
+    id: `fpr_${Date.now()}`, caseCycleId: c.currentCycleId,
+    findingId, pullRequestId: pr.id, relationType: 'PRIMARY',
+    source: 'MANUAL', isCurrent: true, linkedBy: actor,
+    createdAt: new Date().toISOString(), pullRequest: pr,
+  });
+  if (f.resolutionStatus === 'NOT_STARTED') f.resolutionStatus = 'IN_PROGRESS';
+  f.updatedAt = new Date().toISOString();
+  c.updatedAt = f.updatedAt;
+  log(actor, 'PR_REGISTER', c.caseKey, `Manual PR #${pr.number}`);
+  return clone(pr);
+}
+
+export async function confirmPullRequestFindings(
+  caseId: string, prId: string, findingIds: string[], actor: string,
+): Promise<void> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  log(actor, 'PR_CONFIRM', c.caseKey, `PR ${prId} → ${findingIds.length} findings`);
+}
+
+/* -------------------- Merge -------------------- */
+
+export async function createMergeBatch(caseId: string, actor: string): Promise<MergeBatch> {
+  await sleep(600);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const batch: MergeBatch = {
+    id: `mb_${Date.now()}`, caseId, caseCycleId: c.currentCycleId,
+    requestedBy: actor, status: 'COMPLETED',
+    createdAt: new Date().toISOString(),
+    pullRequestResults: c.pullRequests
+      .filter((pr) => pr.state === 'OPEN')
+      .map((pr) => ({ pullRequestId: pr.id, status: 'MERGED' as const })),
+  };
+  c.mergeBatches.push(batch);
+  batch.pullRequestResults.forEach((r) => {
+    const pr = c.pullRequests.find((p) => p.id === r.pullRequestId);
+    if (pr) { pr.state = 'MERGED'; pr.mergedAt = new Date().toISOString(); }
+  });
+  if (c.status === 'DEVELOPING') c.status = 'DEPLOYING';
+  c.updatedAt = new Date().toISOString();
+  log(actor, 'MERGE_BATCH', c.caseKey, `${batch.pullRequestResults.length} PRs`);
+  return clone(batch);
+}
+
+export async function getMergeBatch(caseId: string, batchId: string): Promise<MergeBatch | undefined> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  return clone(c?.mergeBatches.find((b) => b.id === batchId));
+}
+
+/* -------------------- 部署 & 验证 -------------------- */
+
+export async function retryDeployment(caseId: string, actor: string): Promise<void> {
+  await sleep(1000);
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  c.deploymentRuns
+    .filter((r) => r.status === 'FAILED')
+    .forEach((r) => { r.status = 'SUCCEEDED'; r.finishedAt = new Date().toISOString(); });
+  if (c.status === 'DEPLOY_FAILED') c.status = 'DEPLOYING';
+  c.updatedAt = new Date().toISOString();
+  log(actor, 'DEPLOY_RETRY', c.caseKey, '重试失败部署');
+}
+
+export async function completeUat(caseId: string, actor: string): Promise<CaseV2> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  if (c.status === 'DEPLOYING') c.status = 'DEPLOYED';
+  c.updatedAt = new Date().toISOString();
+  log(actor, 'UAT_COMPLETE', c.caseKey, 'UAT 部署完成');
+  return clone(c);
+}
+
+export async function submitVerification(
+  caseId: string, result: 'PASSED' | 'FAILED', comment: string, actor: string,
+): Promise<CaseV2> {
+  await sleep();
+  const c = casesV2.find((x) => x.id === caseId);
+  if (!c) throw new Error(`Case not found: ${caseId}`);
+  const record: VerificationRecord = {
+    id: `vr_${Date.now()}`, caseId, caseCycleId: c.currentCycleId,
+    result, comment, verifiedBy: actor, createdAt: new Date().toISOString(),
+  };
+  c.verificationRecords.push(record);
+  if (result === 'PASSED') {
+    c.status = 'COMPLETED';
+  } else {
+    c.status = 'PENDING_ANALYSIS';
+  }
+  c.updatedAt = new Date().toISOString();
+  log(actor, 'VERIFY', c.caseKey, `${result}${comment ? `: ${comment}` : ''}`);
+  return clone(c);
 }
 
 export async function grantRole(userId: string, role: Role, actor: string): Promise<User> {
@@ -362,34 +763,41 @@ const WEEKS = ['08-29', '08-30', '08-31', '09-01', '09-02', '09-03', '09-04'];
 
 export async function getDashboardOverview(projectIds?: string[]): Promise<DashboardOverview> {
   await sleep();
-  const scope = projectIds?.length ? tickets.filter((t) => projectIds.includes(t.projectId)) : tickets;
-  const diagnosed = scope.filter((t) => t.diagnosis === 'COMPLETED').length;
-  const withPr = scope.filter((t) => t.fix.prUrl).length;
-  const merged = scope.filter((t) => ['MERGED', 'UAT_DEPLOYED'].includes(t.fix.status)).length;
-  const byStage = new Map<string, number>();
-  scope.forEach((t) => byStage.set(stageOf(t), (byStage.get(stageOf(t)) ?? 0) + 1));
+  const scope = projectIds?.length ? casesV2.filter((c) => projectIds.includes(c.projectId)) : casesV2;
+
+  const statusCounts = new Map<CaseStatus, number>();
+  scope.forEach((c) => statusCounts.set(c.status, (statusCounts.get(c.status) ?? 0) + 1));
 
   const services = new Map<string, number>();
-  scope.forEach((t) => services.set(t.service, (services.get(t.service) ?? 0) + 1));
+  scope.forEach((c) => services.set(c.projectId, (services.get(c.projectId) ?? 0) + 1));
   const max = Math.max(...services.values(), 1);
+
+  const totalFindings = scope.reduce((sum, c) => sum + c.findings.length, 0);
+  const acceptedFindings = scope.reduce((sum, c) => sum + c.findings.filter((f) => f.analysisStatus === 'ACCEPTED').length, 0);
+  const withPr = scope.reduce((sum, c) => sum + c.pullRequests.length, 0);
+  const mergedPr = scope.reduce((sum, c) => sum + c.pullRequests.filter((pr) => pr.state === 'MERGED').length, 0);
 
   return {
     weeklyCases: { value: scope.length, delta: 12 },
-    diagnosisRate: { value: Math.round((diagnosed / Math.max(scope.length, 1)) * 100), delta: 4 },
+    diagnosisRate: { value: Math.round((acceptedFindings / Math.max(totalFindings, 1)) * 100), delta: 4 },
     avgDuration: { value: 42, delta: -6 },
-    autoFixRate: { value: Math.round((merged / Math.max(withPr, 1)) * 100), delta: 3 },
+    autoFixRate: { value: Math.round((mergedPr / Math.max(withPr, 1)) * 100), delta: 3 },
+    pendingAnalysis: statusCounts.get('PENDING_ANALYSIS') ?? 0,
+    pendingVerification: statusCounts.get('PENDING_VERIFICATION') ?? 0,
+    deployFailed: statusCounts.get('DEPLOY_FAILED') ?? 0,
     trend: WEEKS.map((date, i) => ({
       date,
       case: Math.max(2, Math.round((scope.length / 7) * (0.6 + ((i * 37) % 10) / 8))),
-      finding: Math.max(1, Math.round((scope.length / 9) * (0.7 + ((i * 53) % 10) / 9))),
-      jira: Math.max(0, Math.round((scope.length / 12) * (0.8 + ((i * 71) % 10) / 10))),
+      finding: Math.max(1, Math.round((totalFindings / 7) * (0.7 + ((i * 53) % 10) / 9))),
+      pr: Math.max(0, Math.round((withPr / 7) * (0.8 + ((i * 71) % 10) / 10))),
+      deployment: Math.max(0, Math.round((scope.length / 14) * (0.5 + ((i * 23) % 10) / 8))),
     })),
     topServices: [...services.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
-      .map(([name, count]) => ({ name, count, percent: Math.round((count / max) * 100) })),
-    stageDistribution: (['ANALYZING', 'DEVELOPING', 'VERIFYING', 'DEPLOYING', 'DONE', 'REJECTED'] as const).map(
-      (stage) => ({ stage, count: byStage.get(stage) ?? 0 }),
+      .map(([name, count]) => ({ name: projectName(name), count, percent: Math.round((count / max) * 100) })),
+    statusDistribution: (['PENDING_ANALYSIS', 'ANALYZING', 'ANALYSIS_COMPLETED', 'DEVELOPING', 'DEPLOYING', 'DEPLOY_FAILED', 'DEPLOYED', 'PENDING_VERIFICATION', 'COMPLETED'] as const).map(
+      (status) => ({ status, count: statusCounts.get(status) ?? 0 }),
     ),
   };
 }

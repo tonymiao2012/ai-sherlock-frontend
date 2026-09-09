@@ -77,7 +77,7 @@ function allow(
       if (role === 'ADMIN' || role === 'OWNER') return true;
       if (role === 'STAFF') {
         if (staffType === 'DEV' && isAssigned) return true;
-        if (staffType === 'TESTER' && context?.case?.status === 'VERIFYING') return true;
+        if (staffType === 'TESTER' && context?.case?.status === 'PENDING_VERIFICATION') return true;
       }
       return false;
 
@@ -210,4 +210,6 @@ export const LEGACY_ROLE_LABEL: Record<Role, string> = {
   ADMIN: '系统管理员',
   PROJECT_OWNER: '项目 Owner',
   DEVELOPER: '普通成员',
+  OWNER: 'Group Owner',
+  STAFF: 'Staff',
 };

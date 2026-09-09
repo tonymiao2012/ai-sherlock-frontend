@@ -1,13 +1,24 @@
 import type {
   AuditLogItem,
   Case,
+  CaseCycle,
+  CaseRevision,
   CaseV2,
+  DeploymentRun,
+  DiagnosisRun,
   Finding,
+  FindingComment,
+  FindingPullRequest,
+  FindingRevision,
   FindingType,
+  FixAttempt,
   Group,
   GroupV2,
   JiraStatus,
+  LegacyFinding,
+  MergeBatch,
   Project,
+  PullRequest,
   Severity,
   Stage,
   Ticket,
@@ -17,6 +28,7 @@ import type {
   UatStatus,
   DiagnosisStatus,
   AnalysisReview,
+  VerificationRecord,
 } from '../types';
 
 const DAY = 86400000;
@@ -192,6 +204,115 @@ export const GROUPS_V2: GroupV2[] = [
   },
 ];
 
+/* -------- 生命周期辅助数据（§4） -------- */
+
+export const CASE_CYCLES: CaseCycle[] = [
+  { id: 'cy_1_1', caseId: 'c_1', cycleNo: 1, status: 'ACTIVE', openedAt: iso(0, 3) },
+  { id: 'cy_2_1', caseId: 'c_2', cycleNo: 1, status: 'ACTIVE', openedAt: iso(1, 2) },
+  { id: 'cy_3_1', caseId: 'c_3', cycleNo: 1, status: 'ACTIVE', openedAt: iso(2, 1) },
+  { id: 'cy_4_1', caseId: 'c_4', cycleNo: 1, status: 'ACTIVE', openedAt: iso(3, 4) },
+  { id: 'cy_5_1', caseId: 'c_5', cycleNo: 1, status: 'ACTIVE', openedAt: iso(4, 2) },
+  { id: 'cy_6_1', caseId: 'c_6', cycleNo: 1, status: 'CLOSED', openedAt: iso(10), closedAt: iso(5) },
+  { id: 'cy_6_2', caseId: 'c_6', cycleNo: 2, status: 'ACTIVE', openedReason: 'VERIFICATION_FAILED', openedAt: iso(5) },
+];
+
+export const CASE_REVISIONS: CaseRevision[] = [
+  { id: 'cr_1', caseId: 'c_1', caseCycleId: 'cy_1_1', revisionNo: 1, title: '登录页面 KYC 上传后无响应', description: '用户上传身份证照片后，页面卡在 loading 状态，无错误提示', changedBy: 'tester@company.com', createdAt: iso(0, 3) },
+  { id: 'cr_2', caseId: 'c_2', caseCycleId: 'cy_2_1', revisionNo: 1, title: '账户资料修改保存失败', description: '修改手机号后点击保存，提示"系统错误"', changedBy: 'user@company.com', createdAt: iso(1, 2) },
+  { id: 'cr_3', caseId: 'c_3', caseCycleId: 'cy_3_1', revisionNo: 1, title: '支付回调通知延迟', description: '用户支付成功后，订单状态更新延迟超过 5 分钟', changedBy: 'merchant@company.com', createdAt: iso(2, 1) },
+  { id: 'cr_4', caseId: 'c_4', caseCycleId: 'cy_4_1', revisionNo: 1, title: '工台搜索功能异常', description: '输入客户姓名后无搜索结果返回', changedBy: 'cs_staff@company.com', createdAt: iso(3, 4) },
+  { id: 'cr_5', caseId: 'c_5', caseCycleId: 'cy_5_1', revisionNo: 1, title: 'UAT 环境支付渠道切换后金额丢失', description: '切换支付渠道后，金额字段未刷新', changedBy: 'tester@company.com', createdAt: iso(4, 2) },
+  { id: 'cr_6_1', caseId: 'c_6', caseCycleId: 'cy_6_1', revisionNo: 1, title: '对账文件日期格式不一致导致导入失败', description: '跨月对账文件日期格式从 yyyyMMdd 变为 yyyy-MM-dd', changedBy: 'ops@company.com', createdAt: iso(10) },
+  { id: 'cr_6_2', caseId: 'c_6', caseCycleId: 'cy_6_2', revisionNo: 1, title: '对账文件日期格式不一致导致导入失败', description: '验证发现跨月边界仍有漏单', changedBy: 'u_zhao', changeReason: '验证失败 Reopen', createdAt: iso(5) },
+];
+
+export const FINDING_REVISIONS: FindingRevision[] = [
+  { id: 'fr_2a', findingId: 'f_2a', caseCycleId: 'cy_2_1', revisionNo: 1, title: 'customer-adapter 连接池耗尽', rootCause: '连接池 maxActive=8 在高并发下耗尽', recommendation: '扩容至 32 并增加降级熔断', confidence: 0.86, status: 'CURRENT', createdAt: iso(1, 1) },
+  { id: 'fr_2b', findingId: 'f_2b', caseCycleId: 'cy_2_1', revisionNo: 1, title: '前端拼音字段被覆盖', rootCause: 'onLanguageChange 里 setFieldsValue 覆盖了 namePinyin', recommendation: '切换语言时保留 store 原值', confidence: 0.92, status: 'CURRENT', createdAt: iso(1, 0) },
+  { id: 'fr_3a', findingId: 'f_3a', caseCycleId: 'cy_3_1', revisionNo: 1, title: '退款幂等键缺失', rootCause: '退款接口未包含唯一幂等键，网络重试导致重复退款', recommendation: '增加基于 orderId+timestamp 的幂等键', confidence: 0.91, status: 'CURRENT', createdAt: iso(2, 0) },
+  { id: 'fr_3b', findingId: 'f_3b', caseCycleId: 'cy_3_1', revisionNo: 1, title: '回调签名校验时区偏移', rootCause: '签名校验使用 UTC 但渠道发送 CST，导致偏移 8 小时', recommendation: '统一使用 ISO-8601 并显式指定时区', confidence: 0.78, status: 'CURRENT', createdAt: iso(1, 20) },
+  { id: 'fr_4a', findingId: 'f_4a', caseCycleId: 'cy_4_1', revisionNo: 1, title: '搜索接口分页参数缺失', rootCause: 'customer-ms 搜索接口未传 pageSize 默认值导致返回 0 条', recommendation: '设置默认 pageSize=20', confidence: 0.88, status: 'CURRENT', createdAt: iso(3, 2) },
+  { id: 'fr_5a', findingId: 'f_5a', caseCycleId: 'cy_5_1', revisionNo: 1, title: '渠道切换后金额状态未重置', rootCause: '切换渠道时未触发金额字段重新计算', recommendation: '在渠道 onChange 中触发金额 recalculating', confidence: 0.85, status: 'CURRENT', createdAt: iso(4, 1) },
+  { id: 'fr_6a', findingId: 'f_6a', caseCycleId: 'cy_6_2', revisionNo: 1, title: '日期解析器未兼容新格式', rootCause: 'SimpleDateFormat 仅支持 yyyyMMdd', recommendation: '增加 yyyy-MM-dd 格式兼容', confidence: 0.95, status: 'CURRENT', createdAt: iso(5) },
+];
+
+export const FINDING_COMMENTS: FindingComment[] = [
+  { id: 'fc_1', findingId: 'f_2a', caseCycleId: 'cy_2_1', authorType: 'USER', authorUserId: 'u_zhang', content: '连接池扩容是否会影响其他服务？', createdAt: iso(0, 20) },
+  { id: 'fc_2', findingId: 'f_2a', caseCycleId: 'cy_2_1', authorType: 'DEVIN', content: 'customer-adapter 独立部署，扩容不影响 account-ms。建议同时补充连接泄漏检测。', diagnosisRunId: 'dr_2', createdAt: iso(0, 19) },
+  { id: 'fc_3', findingId: 'f_3a', caseCycleId: 'cy_3_1', authorType: 'USER', authorUserId: 'u_li', content: '幂等键用 orderId+timestamp 可能在极端并发下重复，建议加 UUID', createdAt: iso(1, 18) },
+  { id: 'fc_4', findingId: 'f_3a', caseCycleId: 'cy_3_1', authorType: 'SYSTEM', content: 'Finding 已选择 AUTO_FIX，等待执行', createdAt: iso(1, 16) },
+];
+
+export const DIAGNOSIS_RUNS: DiagnosisRun[] = [
+  { id: 'dr_2', caseId: 'c_2', caseCycleId: 'cy_2_1', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_2a', caseRevisionId: 'cr_2', createdAt: iso(1, 2), updatedAt: iso(1, 0) },
+  { id: 'dr_3', caseId: 'c_3', caseCycleId: 'cy_3_1', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_3a', caseRevisionId: 'cr_3', createdAt: iso(2, 1), updatedAt: iso(2, 0) },
+  { id: 'dr_3_fix', caseId: 'c_3', caseCycleId: 'cy_3_1', mode: 'IMPLEMENT_CHANGE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_3_fix', createdAt: iso(1, 22), updatedAt: iso(1, 20) },
+  { id: 'dr_4', caseId: 'c_4', caseCycleId: 'cy_4_1', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_4a', caseRevisionId: 'cr_4', createdAt: iso(3, 3), updatedAt: iso(3, 2) },
+  { id: 'dr_5', caseId: 'c_5', caseCycleId: 'cy_5_1', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_5a', caseRevisionId: 'cr_5', createdAt: iso(4, 1), updatedAt: iso(4, 0) },
+  { id: 'dr_6_1', caseId: 'c_6', caseCycleId: 'cy_6_1', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_6a', caseRevisionId: 'cr_6_1', createdAt: iso(9), updatedAt: iso(8) },
+  { id: 'dr_6_2', caseId: 'c_6', caseCycleId: 'cy_6_2', mode: 'DIAGNOSE', status: 'COMPLETED', provider: 'DEVIN', providerSessionId: 'sess_6b', caseRevisionId: 'cr_6_2', createdAt: iso(5), updatedAt: iso(4, 20) },
+];
+
+export const FIX_ATTEMPTS: FixAttempt[] = [
+  { id: 'fa_3a', caseId: 'c_3', caseCycleId: 'cy_3_1', primaryFindingId: 'f_3a', diagnosisRunId: 'dr_3_fix', attemptNo: 1, provider: 'DEVIN', providerSessionId: 'fix_3a', approvalPolicy: 'MANUAL', approvalStatus: 'APPROVED', approvedBy: 'u_li', executionStatus: 'PR_CREATED', idempotencyKey: 'idem_3a_1', createdAt: iso(1, 22), updatedAt: iso(1, 20) },
+  { id: 'fa_3b', caseId: 'c_3', caseCycleId: 'cy_3_1', primaryFindingId: 'f_3b', attemptNo: 1, provider: 'DEVIN', providerSessionId: 'fix_3b', approvalPolicy: 'MANUAL', approvalStatus: 'APPROVED', approvedBy: 'u_li', executionStatus: 'PR_CREATED', idempotencyKey: 'idem_3b_1', createdAt: iso(1, 21), updatedAt: iso(1, 19) },
+  { id: 'fa_5a', caseId: 'c_5', caseCycleId: 'cy_5_1', primaryFindingId: 'f_5a', attemptNo: 1, provider: 'DEVIN', approvalPolicy: 'MANUAL', approvalStatus: 'APPROVED', approvedBy: 'u_zhao', executionStatus: 'PR_CREATED', idempotencyKey: 'idem_5a_1', createdAt: iso(3, 20), updatedAt: iso(3, 18) },
+];
+
+export const PULL_REQUESTS: PullRequest[] = [
+  { id: 'pr_3a', provider: 'BITBUCKET', repositoryId: 'r_5', externalId: '431', number: 431, url: 'https://bitbucket.company.com/projects/PAY/repos/payment-ms/pull-requests/431', sourceBranch: 'fix/PAY-425-idempotency', targetBranch: 'main', headSha: 'abc1234', state: 'OPEN', draft: false, mergeableState: 'CLEAN', checksStatus: 'PASSING', reviewStatus: 'APPROVED', branchProtectionStatus: 'SATISFIED', originType: 'DEVIN', originFixAttemptId: 'fa_3a', lastSyncedAt: iso(0, 1) },
+  { id: 'pr_3b', provider: 'BITBUCKET', repositoryId: 'r_5', externalId: '432', number: 432, url: 'https://bitbucket.company.com/projects/PAY/repos/payment-ms/pull-requests/432', sourceBranch: 'fix/PAY-425-timezone', targetBranch: 'main', headSha: 'def5678', state: 'OPEN', draft: false, mergeableState: 'CLEAN', checksStatus: 'PASSING', reviewStatus: 'PENDING', branchProtectionStatus: 'SATISFIED', originType: 'DEVIN', originFixAttemptId: 'fa_3b', lastSyncedAt: iso(0, 1) },
+  { id: 'pr_5a', provider: 'BITBUCKET', repositoryId: 'r_5', externalId: '440', number: 440, url: 'https://bitbucket.company.com/projects/PAY/repos/payment-ms/pull-requests/440', sourceBranch: 'fix/channel-amount-reset', targetBranch: 'main', headSha: 'ghi9012', state: 'MERGED', draft: false, mergeableState: 'CLEAN', checksStatus: 'PASSING', reviewStatus: 'APPROVED', branchProtectionStatus: 'SATISFIED', originType: 'DEVIN', originFixAttemptId: 'fa_5a', mergedSha: 'ghi9012', mergedAt: iso(2, 10), lastSyncedAt: iso(2, 10) },
+  { id: 'pr_6a', provider: 'BITBUCKET', repositoryId: 'r_2', externalId: '201', number: 201, url: 'https://bitbucket.company.com/projects/ACCT/repos/account-ms/pull-requests/201', sourceBranch: 'fix/date-format', targetBranch: 'main', headSha: 'jkl3456', state: 'MERGED', draft: false, mergeableState: 'CLEAN', checksStatus: 'PASSING', reviewStatus: 'APPROVED', branchProtectionStatus: 'SATISFIED', originType: 'DEVIN', mergedSha: 'jkl3456', mergedAt: iso(6), lastSyncedAt: iso(6) },
+];
+
+export const FINDING_PULL_REQUESTS: FindingPullRequest[] = [
+  { id: 'fpr_3a', caseCycleId: 'cy_3_1', findingId: 'f_3a', pullRequestId: 'pr_3a', relationType: 'PRIMARY', source: 'DEVIN', isCurrent: true, linkedBy: 'devin', createdAt: iso(1, 20), pullRequest: PULL_REQUESTS[0] },
+  { id: 'fpr_3b', caseCycleId: 'cy_3_1', findingId: 'f_3b', pullRequestId: 'pr_3b', relationType: 'PRIMARY', source: 'DEVIN', isCurrent: true, linkedBy: 'devin', createdAt: iso(1, 19), pullRequest: PULL_REQUESTS[1] },
+  { id: 'fpr_5a', caseCycleId: 'cy_5_1', findingId: 'f_5a', pullRequestId: 'pr_5a', relationType: 'PRIMARY', source: 'DEVIN', isCurrent: true, linkedBy: 'devin', createdAt: iso(3, 18), pullRequest: PULL_REQUESTS[2] },
+  { id: 'fpr_6a', caseCycleId: 'cy_6_2', findingId: 'f_6a', pullRequestId: 'pr_6a', relationType: 'PRIMARY', source: 'DEVIN', isCurrent: true, linkedBy: 'devin', createdAt: iso(6), pullRequest: PULL_REQUESTS[3] },
+];
+
+export const DEPLOYMENT_RUNS: DeploymentRun[] = [
+  { id: 'dep_5a', caseId: 'c_5', caseCycleId: 'cy_5_1', repositoryId: 'r_5', environment: 'UAT', workflowName: 'payment-ms-uat', commitSha: 'ghi9012', status: 'SUCCEEDED', attemptNo: 1, url: 'https://ci.company.com/runs/dep-5a', startedAt: iso(2, 10), finishedAt: iso(2, 8) },
+  { id: 'dep_6a', caseId: 'c_6', caseCycleId: 'cy_6_2', repositoryId: 'r_2', environment: 'PROD', workflowName: 'account-ms-deploy', commitSha: 'jkl3456', status: 'FAILED', attemptNo: 1, url: 'https://ci.company.com/runs/dep-6a', startedAt: iso(5, 20), finishedAt: iso(5, 18) },
+  { id: 'dep_6b', caseId: 'c_6', caseCycleId: 'cy_6_2', repositoryId: 'r_1', environment: 'PROD', workflowName: 'account-web-deploy', commitSha: 'jkl3456', status: 'SUCCEEDED', attemptNo: 1, url: 'https://ci.company.com/runs/dep-6b', startedAt: iso(5, 20), finishedAt: iso(5, 19) },
+];
+
+export const VERIFICATION_RECORDS: VerificationRecord[] = [
+  { id: 'vr_6_1', caseId: 'c_6', caseCycleId: 'cy_6_1', result: 'FAILED', comment: '跨月边界仍有漏单', verifiedBy: 'u_wu', createdAt: iso(5) },
+];
+
+export const MERGE_BATCHES: MergeBatch[] = [];
+
+/* -------- Finding 构造辅助 -------- */
+
+function makeFinding(
+  id: string, findingKey: string, caseId: string, caseCycleId: string,
+  type: FindingType, source: Finding['source'], title: string,
+  analysisStatus: Finding['analysisStatus'],
+  resolutionType: Finding['resolutionType'],
+  resolutionStatus: Finding['resolutionStatus'],
+  revisionId: string,
+): Finding {
+  const rev = FINDING_REVISIONS.find((r) => r.id === revisionId)!;
+  return {
+    id, findingKey, caseId, caseCycleId,
+    primaryApplicationId: caseId,
+    type, source, title,
+    analysisStatus, resolutionType, resolutionStatus,
+    isCurrent: true, currentRevisionId: revisionId,
+    createdAt: rev.createdAt, updatedAt: rev.createdAt,
+    currentRevision: rev,
+    revisions: [rev],
+    comments: FINDING_COMMENTS.filter((c) => c.findingId === id),
+    fixAttempts: FIX_ATTEMPTS.filter((a) => a.primaryFindingId === id),
+    pullRequests: FINDING_PULL_REQUESTS.filter((fp) => fp.findingId === id),
+  };
+}
+
+/* -------- CASES_V2（覆盖主流程各状态） -------- */
+
 export const CASES_V2: CaseV2[] = [
   {
     id: 'c_1',
@@ -200,7 +321,8 @@ export const CASES_V2: CaseV2[] = [
     groupId: 'g_acct',
     title: '登录页面 KYC 上传后无响应',
     description: '用户上传身份证照片后，页面卡在 loading 状态，无错误提示',
-    status: 'PENDING',
+    status: 'PENDING_ANALYSIS',
+    currentCycleId: 'cy_1_1',
     assigneeId: undefined,
     environment: 'PROD',
     severity: 'Major',
@@ -209,11 +331,21 @@ export const CASES_V2: CaseV2[] = [
     reporter: 'tester@company.com',
     reportedAt: iso(0, 3),
     updatedAt: iso(0, 3),
+    version: 1,
+    currentCycle: CASE_CYCLES[0],
+    cycles: [CASE_CYCLES[0]],
+    currentRevision: CASE_REVISIONS[0],
+    revisions: [CASE_REVISIONS[0]],
+    findings: [],
+    pullRequests: [],
+    deploymentRuns: [],
+    verificationRecords: [],
+    mergeBatches: [],
+    diagnosisRuns: [],
     network: [],
     consoleLogs: [],
     stacks: [],
     evidenceChain: [],
-    findings: [],
   },
   {
     id: 'c_2',
@@ -222,7 +354,8 @@ export const CASES_V2: CaseV2[] = [
     groupId: 'g_acct',
     title: '账户资料修改保存失败',
     description: '修改手机号后点击保存，提示"系统错误"',
-    status: 'ANALYZING',
+    status: 'ANALYSIS_COMPLETED',
+    currentCycleId: 'cy_2_1',
     assigneeId: 'u_zhang',
     environment: 'PROD',
     severity: 'Critical',
@@ -231,11 +364,24 @@ export const CASES_V2: CaseV2[] = [
     reporter: 'user@company.com',
     reportedAt: iso(1, 2),
     updatedAt: iso(0, 5),
+    version: 1,
+    currentCycle: CASE_CYCLES[1],
+    cycles: [CASE_CYCLES[1]],
+    currentRevision: CASE_REVISIONS[1],
+    revisions: [CASE_REVISIONS[1]],
+    findings: [
+      makeFinding('f_2a', 'FND-2a', 'c_2', 'cy_2_1', 'BACKEND', 'DEVIN', 'customer-adapter 连接池耗尽', 'ACCEPTED', 'AUTO_FIX', 'NOT_STARTED', 'fr_2a'),
+      makeFinding('f_2b', 'FND-2b', 'c_2', 'cy_2_1', 'FRONTEND', 'DEVIN', '前端拼音字段被覆盖', 'DRAFT', undefined, 'NOT_STARTED', 'fr_2b'),
+    ],
+    pullRequests: [],
+    deploymentRuns: [],
+    verificationRecords: [],
+    mergeBatches: [],
+    diagnosisRuns: [DIAGNOSIS_RUNS[0]],
     network: [],
     consoleLogs: [],
     stacks: [],
     evidenceChain: [],
-    findings: [],
   },
   {
     id: 'c_3',
@@ -245,6 +391,7 @@ export const CASES_V2: CaseV2[] = [
     title: '支付回调通知延迟',
     description: '用户支付成功后，订单状态更新延迟超过 5 分钟',
     status: 'DEVELOPING',
+    currentCycleId: 'cy_3_1',
     assigneeId: 'u_li',
     environment: 'PROD',
     severity: 'Major',
@@ -253,11 +400,24 @@ export const CASES_V2: CaseV2[] = [
     reporter: 'merchant@company.com',
     reportedAt: iso(2, 1),
     updatedAt: iso(0, 8),
+    version: 1,
+    currentCycle: CASE_CYCLES[2],
+    cycles: [CASE_CYCLES[2]],
+    currentRevision: CASE_REVISIONS[2],
+    revisions: [CASE_REVISIONS[2]],
+    findings: [
+      makeFinding('f_3a', 'FND-3a', 'c_3', 'cy_3_1', 'BACKEND', 'DEVIN', '退款幂等键缺失', 'ACCEPTED', 'AUTO_FIX', 'READY_TO_MERGE', 'fr_3a'),
+      makeFinding('f_3b', 'FND-3b', 'c_3', 'cy_3_1', 'BACKEND', 'DEVIN', '回调签名校验时区偏移', 'ACCEPTED', 'MANUAL_FIX', 'IN_PROGRESS', 'fr_3b'),
+    ],
+    pullRequests: [PULL_REQUESTS[0], PULL_REQUESTS[1]],
+    deploymentRuns: [],
+    verificationRecords: [],
+    mergeBatches: [],
+    diagnosisRuns: [DIAGNOSIS_RUNS[1], DIAGNOSIS_RUNS[2]],
     network: [],
     consoleLogs: [],
     stacks: [],
     evidenceChain: [],
-    findings: [],
   },
   {
     id: 'c_4',
@@ -266,7 +426,8 @@ export const CASES_V2: CaseV2[] = [
     groupId: 'g_cs',
     title: '工台搜索功能异常',
     description: '输入客户姓名后无搜索结果返回',
-    status: 'VERIFYING',
+    status: 'PENDING_VERIFICATION',
+    currentCycleId: 'cy_4_1',
     assigneeId: 'u_zhao',
     environment: 'UAT',
     severity: 'Minor',
@@ -275,11 +436,93 @@ export const CASES_V2: CaseV2[] = [
     reporter: 'cs_staff@company.com',
     reportedAt: iso(3, 4),
     updatedAt: iso(0, 2),
+    version: 1,
+    currentCycle: CASE_CYCLES[3],
+    cycles: [CASE_CYCLES[3]],
+    currentRevision: CASE_REVISIONS[3],
+    revisions: [CASE_REVISIONS[3]],
+    findings: [
+      makeFinding('f_4a', 'FND-4a', 'c_4', 'cy_4_1', 'BACKEND', 'DEVIN', '搜索接口分页参数缺失', 'ACCEPTED', 'MANUAL_FIX', 'COMPLETED', 'fr_4a'),
+    ],
+    pullRequests: [],
+    deploymentRuns: [],
+    verificationRecords: [],
+    mergeBatches: [],
+    diagnosisRuns: [DIAGNOSIS_RUNS[3]],
     network: [],
     consoleLogs: [],
     stacks: [],
     evidenceChain: [],
-    findings: [],
+  },
+  {
+    id: 'c_5',
+    caseKey: 'SH-20260904-M3N4O5P6',
+    projectId: 'p_pay',
+    groupId: 'g_pay',
+    title: 'UAT 环境支付渠道切换后金额丢失',
+    description: '切换支付渠道后，金额字段未刷新',
+    status: 'DEPLOY_FAILED',
+    currentCycleId: 'cy_5_1',
+    assigneeId: 'u_zhao',
+    environment: 'UAT',
+    severity: 'Major',
+    pageUrl: 'https://payment.company.com/uat/cashier',
+    buildVersion: '1.9.4',
+    reporter: 'tester@company.com',
+    reportedAt: iso(4, 2),
+    updatedAt: iso(2, 8),
+    version: 1,
+    currentCycle: CASE_CYCLES[4],
+    cycles: [CASE_CYCLES[4]],
+    currentRevision: CASE_REVISIONS[4],
+    revisions: [CASE_REVISIONS[4]],
+    findings: [
+      makeFinding('f_5a', 'FND-5a', 'c_5', 'cy_5_1', 'FRONTEND', 'DEVIN', '渠道切换后金额状态未重置', 'ACCEPTED', 'AUTO_FIX', 'COMPLETED', 'fr_5a'),
+    ],
+    pullRequests: [PULL_REQUESTS[2]],
+    deploymentRuns: [DEPLOYMENT_RUNS[0]],
+    verificationRecords: [],
+    mergeBatches: [],
+    diagnosisRuns: [DIAGNOSIS_RUNS[4]],
+    network: [],
+    consoleLogs: [],
+    stacks: [],
+    evidenceChain: [],
+  },
+  {
+    id: 'c_6',
+    caseKey: 'SH-20260830-Q7R8S9T0',
+    projectId: 'p_acct',
+    groupId: 'g_acct',
+    title: '对账文件日期格式不一致导致导入失败',
+    description: '跨月对账文件日期格式从 yyyyMMdd 变为 yyyy-MM-dd，验证发现仍有漏单',
+    status: 'DEPLOY_FAILED',
+    currentCycleId: 'cy_6_2',
+    assigneeId: 'u_zhang',
+    environment: 'PROD',
+    severity: 'Critical',
+    pageUrl: 'https://account.company.com/reconciliation',
+    buildVersion: '5.8.0',
+    reporter: 'ops@company.com',
+    reportedAt: iso(10),
+    updatedAt: iso(5, 18),
+    version: 2,
+    currentCycle: CASE_CYCLES[6],
+    cycles: [CASE_CYCLES[5], CASE_CYCLES[6]],
+    currentRevision: CASE_REVISIONS[6],
+    revisions: [CASE_REVISIONS[5], CASE_REVISIONS[6]],
+    findings: [
+      makeFinding('f_6a', 'FND-6a', 'c_6', 'cy_6_2', 'BACKEND', 'DEVIN', '日期解析器未兼容新格式', 'ACCEPTED', 'AUTO_FIX', 'COMPLETED', 'fr_6a'),
+    ],
+    pullRequests: [PULL_REQUESTS[3]],
+    deploymentRuns: [DEPLOYMENT_RUNS[1], DEPLOYMENT_RUNS[2]],
+    verificationRecords: [VERIFICATION_RECORDS[0]],
+    mergeBatches: [],
+    diagnosisRuns: [DIAGNOSIS_RUNS[5], DIAGNOSIS_RUNS[6]],
+    network: [],
+    consoleLogs: [],
+    stacks: [],
+    evidenceChain: [],
   },
 ];
 
@@ -732,7 +975,7 @@ const FINDING_TEXT: Record<FindingType, { rootCause: string; fix: string; file: 
 export function buildCase(ticket: Ticket): Case {
   const project = PROJECTS.find((p) => p.id === ticket.projectId)!;
   const text = FINDING_TEXT[ticket.findingType];
-  const finding: Finding = {
+  const finding: LegacyFinding = {
     id: `f_${ticket.findingKey}`,
     findingKey: ticket.findingKey,
     type: ticket.findingType,

@@ -194,8 +194,11 @@ export function CasesPage() {
         caseItem={active}
         open={Boolean(active)}
         onClose={() => setActive(undefined)}
-        onAssign={handleAssign}
         onStatusChange={handleStatusChange}
+        onCaseUpdate={(updated) => {
+          setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          setActive(updated);
+        }}
       />
     </Card>
   );
