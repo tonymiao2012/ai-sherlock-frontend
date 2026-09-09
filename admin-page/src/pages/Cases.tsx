@@ -29,10 +29,7 @@ export function CasesPage() {
 
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    let result = visibleCases;
-    if (cases.length > 0 && result.length === 0) {
-      result = cases;
-    }
+    let result = cases.length > 0 ? cases : visibleCases;
     return result
       .filter((c) => (projectId ? c.projectId === projectId : true))
       .filter((c) => (status ? c.status === status : true))

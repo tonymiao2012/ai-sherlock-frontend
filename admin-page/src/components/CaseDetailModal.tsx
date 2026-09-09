@@ -7,6 +7,7 @@ import {
   Input,
   Modal,
   Progress,
+  Select,
   Steps,
   Tag,
   Typography,
@@ -36,6 +37,39 @@ const STATUS_STEPS = [
   'COMPLETED',
 ] as CaseStatus[];
 
+/** Workflow 下拉框选项（按当前状态） */
+function transitionOptions(status: CaseStatus): { value: CaseStatus; label: string }[] {
+  switch (status) {
+    case 'PENDING_ANALYSIS':
+      return [{ value: 'ANALYZING', label: '分析中' }];
+    case 'ANALYZING':
+      return [{ value: 'ANALYSIS_COMPLETED', label: '分析结束' }];
+    case 'ANALYSIS_COMPLETED':
+      return [
+        { value: 'DEVELOPING', label: '开发中' },
+        { value: 'PENDING_VERIFICATION', label: '待验证（全部忽略）' },
+      ];
+    case 'DEVELOPING':
+      return [{ value: 'DEPLOYING', label: '部署中' }];
+    case 'DEPLOYING':
+      return [
+        { value: 'DEPLOYED', label: '部署完成' },
+        { value: 'DEPLOY_FAILED', label: '部署失败' },
+      ];
+    case 'DEPLOY_FAILED':
+      return [{ value: 'DEPLOYING', label: '重试部署' }];
+    case 'DEPLOYED':
+      return [{ value: 'PENDING_VERIFICATION', label: '待验证' }];
+    case 'PENDING_VERIFICATION':
+      return [
+        { value: 'COMPLETED', label: '验证通过' },
+        { value: 'PENDING_ANALYSIS', label: '验证失败，重新分析' },
+      ];
+    case 'COMPLETED':
+      return [];
+  }
+}
+
 interface Props {
   caseItem?: CaseV2;
   open: boolean;
@@ -45,7 +79,7 @@ interface Props {
 }
 
 export function CaseDetailModal({ caseItem, open, onClose, onStatusChange, onCaseUpdate }: Props) {
-  const { projects, userName } = useSession();
+  const { projects, userName, can } = useSession();
 
   if (!caseItem) return null;
 
@@ -57,6 +91,56 @@ export function CaseDetailModal({ caseItem, open, onClose, onStatusChange, onCas
     if (updated && onCaseUpdate) onCaseUpdate(updated);
   };
 
+  const findings = caseItem.findings.filter((f) => f.isCurrent);
+  const s = caseItem.status;
+
+  const sections: { key: string; label: string; children: React.ReactNode }[] = [
+    {
+      key: 'report',
+      label: '问题报告',
+      children: <ReportSection caseItem={caseItem} project={project} userName={userName} />,
+    },
+    ...(findings.length > 0 || s === 'ANALYZING'
+      ? [{
+          key: 'findings',
+          label: `Findings (${findings.length})`,
+          children: <FindingsSection caseItem={caseItem} onRefresh={refresh} />,
+        }]
+      : []),
+    ...(caseItem.pullRequests.length > 0 || caseItem.mergeBatches.length > 0
+      ? [{
+          key: 'prs',
+          label: `Pull Requests (${caseItem.pullRequests.length})`,
+          children: <PrsSection caseItem={caseItem} onRefresh={refresh} />,
+        }]
+      : []),
+    ...(caseItem.deploymentRuns.length > 0
+      ? [{
+          key: 'deployments',
+          label: `部署记录 (${caseItem.deploymentRuns.length})`,
+          children: <DeploymentsSection caseItem={caseItem} />,
+        }]
+      : []),
+    ...(caseItem.verificationRecords.length > 0
+      ? [{
+          key: 'verification',
+          label: `验证记录 (${caseItem.verificationRecords.length})`,
+          children: <VerificationSection caseItem={caseItem} />,
+        }]
+      : []),
+  ];
+
+  const defaultActive =
+    s === 'PENDING_ANALYSIS' ? ['report']
+    : s === 'ANALYZING' || s === 'ANALYSIS_COMPLETED' ? ['report', 'findings']
+    : s === 'DEVELOPING' ? ['findings', 'prs']
+    : s === 'DEPLOYING' || s === 'DEPLOY_FAILED' ? ['prs']
+    : s === 'DEPLOYED' || s === 'PENDING_VERIFICATION' ? ['deployments']
+    : ['verification'];
+
+  const options = transitionOptions(s);
+  const canModify = can('case.status.modify');
+
   return (
     <Modal
       open={open}
@@ -66,75 +150,49 @@ export function CaseDetailModal({ caseItem, open, onClose, onStatusChange, onCas
       centered
       styles={{
         body: { height: '75vh', overflow: 'auto', padding: '16px 24px' },
+        header: { padding: '24px 24px 8px' },
       }}
       title={
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Typography.Text strong>{caseItem.caseKey}</Typography.Text>
-          <CaseStatusTag status={caseItem.status} />
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <Typography.Text strong style={{ flexShrink: 0 }}>{caseItem.caseKey}</Typography.Text>
+            <Typography.Text ellipsis style={{ flex: 1 }}>
+              - {caseItem.title}
+            </Typography.Text>
+            <CaseStatusTag status={caseItem.status} />
+          </span>
+          <Select<CaseStatus>
+            style={{ width: 200, flexShrink: 0 }}
+            value={s}
+            disabled={!canModify || options.length === 0}
+            onChange={(next) => onStatusChange(caseItem.id, next).then(refresh)}
+            options={[
+              { value: s, label: CASE_STATUS_META[s]?.label ?? s, disabled: true },
+              ...options.map((o) => ({ value: o.value, label: `→ ${o.label}` })),
+            ]}
+          />
+        </div>
       }
     >
-      <Typography.Paragraph style={{ marginTop: 0, marginBottom: 16 }} strong>
-        {caseItem.title}
-      </Typography.Paragraph>
-
       <Steps
         size="small"
         current={currentStep}
         style={{ marginBottom: 20 }}
-        items={STATUS_STEPS.map((s) => ({ title: CASE_STATUS_META[s]?.label ?? s }))}
+        items={STATUS_STEPS.map((st) => ({ title: CASE_STATUS_META[st]?.label ?? st }))}
       />
 
-      <div style={{ display: 'flex', gap: 24 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <StatusContent caseItem={caseItem} project={project} userName={userName} onRefresh={refresh} />
-        </div>
-        <div style={{ width: 180, flexShrink: 0 }}>
-          <WorkflowButtons caseItem={caseItem} onStatusChange={onStatusChange} onRefresh={refresh} />
-        </div>
-      </div>
+      <Collapse
+        key={s}
+        defaultActiveKey={defaultActive}
+        items={sections}
+      />
     </Modal>
   );
 }
 
-/* =========================== Status-specific Content =========================== */
+/* =========================== 问题报告 =========================== */
 
-function StatusContent({
-  caseItem,
-  project,
-  userName,
-  onRefresh,
-}: {
-  caseItem: CaseV2;
-  project?: { id: string; name: string };
-  userName: (id: string) => string;
-  onRefresh: () => Promise<void>;
-}) {
-  switch (caseItem.status) {
-    case 'PENDING_ANALYSIS':
-      return <ReportView caseItem={caseItem} project={project} userName={userName} />;
-    case 'ANALYZING':
-      return <AnalyzingView caseItem={caseItem} onRefresh={onRefresh} />;
-    case 'ANALYSIS_COMPLETED':
-      return <AnalysisDoneView caseItem={caseItem} />;
-    case 'DEVELOPING':
-      return <DevelopingView caseItem={caseItem} onRefresh={onRefresh} />;
-    case 'DEPLOYING':
-      return <DeployingView caseItem={caseItem} onRefresh={onRefresh} />;
-    case 'DEPLOYED':
-      return <DeployedView caseItem={caseItem} />;
-    case 'PENDING_VERIFICATION':
-      return <PendingVerificationView caseItem={caseItem} />;
-    case 'COMPLETED':
-      return <CompletedView caseItem={caseItem} />;
-    default:
-      return <ReportView caseItem={caseItem} project={project} userName={userName} />;
-  }
-}
-
-/* ---------- 待开始: Report ---------- */
-
-function ReportView({
+function ReportSection({
   caseItem,
   project,
   userName,
@@ -218,164 +276,18 @@ function EvidenceSection({ caseItem }: { caseItem: CaseV2 }) {
   );
 }
 
-/* ---------- 分析中: Findings + Comment ---------- */
+/* =========================== Findings =========================== */
 
-function AnalyzingView({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () => Promise<void> }) {
+function FindingsSection({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () => Promise<void> }) {
   const { user, can } = useSession();
-  const [comment, setComment] = useState('');
-  const findings = caseItem.findings.filter((f) => f.isCurrent);
-
-  const handleSendComment = async () => {
-    if (!comment.trim() || findings.length === 0) return;
-    await api.addFindingComment(caseItem.id, findings[0].id, comment, user.email);
-    setComment('');
-    await onRefresh();
-  };
-
-  return (
-    <div>
-      {findings.length === 0 ? (
-        <Empty description="AI 分析中，暂无 Finding..." />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {findings.map((f) => (
-            <div key={f.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 8, padding: 14 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                <Typography.Text strong>{f.findingKey}</Typography.Text>
-                <Tag>{f.type}</Tag>
-                <Tag color={f.analysisStatus === 'ACCEPTED' ? 'green' : 'default'}>
-                  {f.analysisStatus === 'ACCEPTED' ? '已接受' : '草稿'}
-                </Tag>
-              </div>
-              <Typography.Paragraph strong style={{ marginBottom: 8 }}>{f.title}</Typography.Paragraph>
-              {f.currentRevision?.rootCause && (
-                <div style={{ fontSize: 13 }}>
-                  <Typography.Text type="secondary">Root Cause: </Typography.Text>
-                  {f.currentRevision.rootCause}
-                </div>
-              )}
-              {f.currentRevision && (
-                <Progress
-                  percent={Math.round(f.currentRevision.confidence * 100)}
-                  size="small"
-                  format={(pct) => `AI 置信度 ${pct}%`}
-                  style={{ marginTop: 8 }}
-                />
-              )}
-              {f.analysisStatus === 'DRAFT' && can('case.status.modify') && (
-                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                  <Button size="small" type="primary" onClick={async () => {
-                    await api.acceptFinding(caseItem.id, f.id, user.email);
-                    await onRefresh();
-                  }}>
-                    接受
-                  </Button>
-                  <Button size="small" onClick={async () => {
-                    await api.reDiagnoseFinding(caseItem.id, f.id, user.email);
-                    await onRefresh();
-                  }}>
-                    重新分析
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-        评论 ({findings.length > 0 ? findings[0].comments.length : 0})
-      </Typography.Text>
-      {findings.length > 0 && findings[0].comments.map((c) => (
-        <div key={c.id} style={{ marginBottom: 8, paddingLeft: 8, borderLeft: `2px solid ${palette.line}` }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Tag color={c.authorType === 'USER' ? 'blue' : c.authorType === 'DEVIN' ? 'purple' : 'default'} style={{ fontSize: 11 }}>
-              {c.authorType}
-            </Tag>
-            <Typography.Text type="secondary" style={{ fontSize: 11 }}>{fmtShort(c.createdAt)}</Typography.Text>
-          </div>
-          <Typography.Paragraph style={{ margin: '4px 0 0', fontSize: 13 }}>{c.content}</Typography.Paragraph>
-        </div>
-      ))}
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <Input.TextArea
-          size="small"
-          rows={2}
-          placeholder="添加评论，辅助 AI 分析..."
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          style={{ flex: 1 }}
-        />
-        <Button size="small" type="primary" onClick={handleSendComment} disabled={!comment.trim()}>
-          发送
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- 分析完成: Finalized Findings ---------- */
-
-function AnalysisDoneView({ caseItem }: { caseItem: CaseV2 }) {
-  const findings = caseItem.findings.filter((f) => f.isCurrent);
-
-  return (
-    <div>
-      {findings.length === 0 ? (
-        <Empty description="暂无 Finding" />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {findings.map((f) => (
-            <div key={f.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 8, padding: 14 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                <Typography.Text strong>{f.findingKey}</Typography.Text>
-                <Tag>{f.type}</Tag>
-                <Tag color="green">已接受</Tag>
-              </div>
-              <Typography.Paragraph strong style={{ marginBottom: 8 }}>{f.title}</Typography.Paragraph>
-              {f.currentRevision?.rootCause && (
-                <div style={{ fontSize: 13 }}>
-                  <Typography.Text type="secondary">Root Cause: </Typography.Text>
-                  {f.currentRevision.rootCause}
-                </div>
-              )}
-              {f.currentRevision && (
-                <Progress
-                  percent={Math.round(f.currentRevision.confidence * 100)}
-                  size="small"
-                  format={(pct) => `AI 置信度 ${pct}%`}
-                  style={{ marginTop: 8 }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------- 开发中: Findings + AutoFix + PRs ---------- */
-
-function DevelopingView({
-  caseItem,
-  onRefresh,
-}: {
-  caseItem: CaseV2;
-  onRefresh: () => Promise<void>;
-}) {
-  const { user, can } = useSession();
-  const findings = caseItem.findings.filter((f) => f.isCurrent);
   const [registerPrFindingId, setRegisterPrFindingId] = useState<string>();
   const [prUrl, setPrUrl] = useState('');
   const [prSourceBranch, setPrSourceBranch] = useState('');
   const [prTargetBranch, setPrTargetBranch] = useState('main');
 
-  const handleAutoFix = async (findingId: string) => {
-    await api.triggerAutoFix(caseItem.id, findingId, user.email);
-    await onRefresh();
-  };
+  const findings = caseItem.findings.filter((f) => f.isCurrent);
+  const s = caseItem.status;
+  const canModify = can('case.status.modify');
 
   const handleResolve = async (findingId: string, type: FindingResolutionType) => {
     await api.resolveFinding(caseItem.id, findingId, type, user.email);
@@ -397,34 +309,21 @@ function DevelopingView({
     await onRefresh();
   };
 
-  const handleAutoFixAll = async () => {
-    const fixable = findings.filter((f) => f.analysisStatus === 'ACCEPTED' && !f.resolutionType);
-    for (const f of fixable) {
-      await api.resolveFinding(caseItem.id, f.id, 'AUTO_FIX', user.email);
-    }
-    for (const f of fixable) {
-      await api.triggerAutoFix(caseItem.id, f.id, user.email);
-    }
-    await onRefresh();
-  };
+  if (findings.length === 0) {
+    return <Empty description="AI 分析中，暂无 Finding..." />;
+  }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Typography.Text strong>Findings ({findings.length})</Typography.Text>
-        {can('case.status.modify') && findings.some((f) => f.analysisStatus === 'ACCEPTED' && !f.resolutionType) && (
-          <Button size="small" type="primary" onClick={handleAutoFixAll}>
-            Auto Fix All
-          </Button>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {findings.map((f) => (
           <div key={f.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 8, padding: 14 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
               <Typography.Text strong>{f.findingKey}</Typography.Text>
               <Tag>{f.type}</Tag>
+              <Tag color={f.analysisStatus === 'ACCEPTED' ? 'green' : 'default'}>
+                {f.analysisStatus === 'ACCEPTED' ? '已接受' : '草稿'}
+              </Tag>
               {f.resolutionType && (
                 <Tag color={f.resolutionType === 'AUTO_FIX' ? 'blue' : f.resolutionType === 'MANUAL_FIX' ? 'orange' : 'default'}>
                   {f.resolutionType === 'AUTO_FIX' ? '自动修复' : f.resolutionType === 'MANUAL_FIX' ? '人工修复' : '忽略'}
@@ -438,8 +337,33 @@ function DevelopingView({
                 {f.currentRevision.rootCause}
               </div>
             )}
+            {f.currentRevision && (
+              <Progress
+                percent={Math.round(f.currentRevision.confidence * 100)}
+                size="small"
+                format={(pct) => `AI 置信度 ${pct}%`}
+                style={{ marginBottom: 8, maxWidth: 320 }}
+              />
+            )}
 
-            {can('case.status.modify') && (
+            {canModify && s === 'ANALYZING' && f.analysisStatus === 'DRAFT' && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Button size="small" type="primary" onClick={async () => {
+                  await api.acceptFinding(caseItem.id, f.id, user.email);
+                  await onRefresh();
+                }}>
+                  接受
+                </Button>
+                <Button size="small" onClick={async () => {
+                  await api.reDiagnoseFinding(caseItem.id, f.id, user.email);
+                  await onRefresh();
+                }}>
+                  重新分析
+                </Button>
+              </div>
+            )}
+
+            {canModify && s === 'DEVELOPING' && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {f.analysisStatus === 'ACCEPTED' && !f.resolutionType && (
                   <>
@@ -455,7 +379,10 @@ function DevelopingView({
                   </>
                 )}
                 {f.resolutionType === 'AUTO_FIX' && f.resolutionStatus === 'NOT_STARTED' && (
-                  <Button size="small" type="primary" onClick={() => handleAutoFix(f.id)}>
+                  <Button size="small" type="primary" onClick={async () => {
+                    await api.triggerAutoFix(caseItem.id, f.id, user.email);
+                    await onRefresh();
+                  }}>
                     触发 Auto Fix
                   </Button>
                 )}
@@ -503,15 +430,67 @@ function DevelopingView({
         ))}
       </div>
 
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <PrList caseItem={caseItem} />
+      <CommentThread caseItem={caseItem} finding={findings[0]} onRefresh={onRefresh} />
     </div>
   );
 }
 
-/* ---------- 部署中: PRs + Merge ---------- */
+function CommentThread({
+  caseItem,
+  finding,
+  onRefresh,
+}: {
+  caseItem: CaseV2;
+  finding: { id: string; comments: { id: string; authorType: string; createdAt: string; content: string }[] };
+  onRefresh: () => Promise<void>;
+}) {
+  const { user } = useSession();
+  const [text, setText] = useState('');
 
-function DeployingView({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () => Promise<void> }) {
+  const handleSend = async () => {
+    if (!text.trim()) return;
+    await api.addFindingComment(caseItem.id, finding.id, text, user.email);
+    setText('');
+    await onRefresh();
+  };
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <Divider style={{ margin: '0 0 12px' }} />
+      <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+        评论 ({finding.comments.length})
+      </Typography.Text>
+      {finding.comments.map((c) => (
+        <div key={c.id} style={{ marginBottom: 8, paddingLeft: 8, borderLeft: `2px solid ${palette.line}` }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Tag color={c.authorType === 'USER' ? 'blue' : c.authorType === 'DEVIN' ? 'purple' : 'default'} style={{ fontSize: 11 }}>
+              {c.authorType}
+            </Tag>
+            <Typography.Text type="secondary" style={{ fontSize: 11 }}>{fmtShort(c.createdAt)}</Typography.Text>
+          </div>
+          <Typography.Paragraph style={{ margin: '4px 0 0', fontSize: 13 }}>{c.content}</Typography.Paragraph>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <Input.TextArea
+          size="small"
+          rows={2}
+          placeholder="添加评论，辅助 AI 分析..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <Button size="small" type="primary" onClick={handleSend} disabled={!text.trim()}>
+          发送
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================== Pull Requests =========================== */
+
+function PrsSection({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () => Promise<void> }) {
   const { can } = useSession();
 
   const handleMergeAll = async () => {
@@ -521,16 +500,38 @@ function DeployingView({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: (
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Typography.Text strong>Pull Requests ({caseItem.pullRequests.length})</Typography.Text>
-        {can('case.status.modify') && caseItem.pullRequests.some((pr) => pr.state === 'OPEN') && (
+      {can('case.status.modify') && caseItem.status === 'DEPLOYING' && caseItem.pullRequests.some((pr) => pr.state === 'OPEN') && (
+        <div style={{ marginBottom: 12 }}>
           <Button size="small" type="primary" onClick={handleMergeAll}>
             Merge All
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <PrList caseItem={caseItem} />
+      {caseItem.pullRequests.length === 0 ? (
+        <Empty description="暂无 PR" />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {caseItem.pullRequests.map((pr) => (
+            <div key={pr.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Tag color={pr.state === 'MERGED' ? 'green' : pr.state === 'OPEN' ? 'blue' : 'default'}>
+                    {pr.state}
+                  </Tag>
+                  <Typography.Link href={pr.url} target="_blank">
+                    #{pr.number}
+                  </Typography.Link>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {pr.sourceBranch} → {pr.targetBranch}
+                  </Typography.Text>
+                </div>
+                <Tag style={{ fontSize: 11 }}>{pr.originType}</Tag>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {caseItem.mergeBatches.length > 0 && (
         <>
@@ -556,129 +557,28 @@ function DeployingView({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: (
   );
 }
 
-/* ---------- 部署完成 ---------- */
+/* =========================== 部署记录 =========================== */
 
-function DeployedView({ caseItem }: { caseItem: CaseV2 }) {
+function DeploymentsSection({ caseItem }: { caseItem: CaseV2 }) {
+  if (caseItem.deploymentRuns.length === 0) {
+    return <Empty description="暂无部署记录" />;
+  }
   return (
-    <div>
-      <PrList caseItem={caseItem} />
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-        部署记录
-      </Typography.Text>
-      {caseItem.deploymentRuns.length === 0 ? (
-        <Empty description="暂无部署记录" />
-      ) : (
-        caseItem.deploymentRuns.map((r) => (
-          <div key={r.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Tag color={r.status === 'SUCCEEDED' ? 'green' : r.status === 'FAILED' ? 'red' : 'blue'}>
-                {r.status}
-              </Tag>
-              <Typography.Text style={{ fontSize: 12 }}>
-                #{r.attemptNo} · {r.environment} · {fmtShort(r.startedAt ?? '')}
-              </Typography.Text>
-              {r.url && (
-                <Typography.Link href={r.url} target="_blank" style={{ fontSize: 12 }}>
-                  查看
-                </Typography.Link>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-/* ---------- 待验证 ---------- */
-
-function PendingVerificationView({ caseItem }: { caseItem: CaseV2 }) {
-  return (
-    <div>
-      <Typography.Paragraph>
-        部署已完成，等待用户 / Tester 在 Chrome 扩展端进行验证。
-      </Typography.Paragraph>
-      <PrList caseItem={caseItem} />
-      <Divider style={{ margin: '16px 0 12px' }} />
-      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-        部署记录
-      </Typography.Text>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {caseItem.deploymentRuns.map((r) => (
-        <div key={r.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+        <div key={r.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Tag color={r.status === 'SUCCEEDED' ? 'green' : 'red'}>
+            <Tag color={r.status === 'SUCCEEDED' ? 'green' : r.status === 'FAILED' ? 'red' : 'blue'}>
               {r.status}
             </Tag>
             <Typography.Text style={{ fontSize: 12 }}>
               #{r.attemptNo} · {r.environment} · {fmtShort(r.startedAt ?? '')}
             </Typography.Text>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ---------- 已完成 ---------- */
-
-function CompletedView({ caseItem }: { caseItem: CaseV2 }) {
-  return (
-    <div>
-      <Typography.Paragraph strong style={{ color: '#39AD69' }}>
-        Case 已关闭
-      </Typography.Paragraph>
-      {caseItem.verificationRecords.length > 0 && (
-        <>
-          <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-            验证记录
-          </Typography.Text>
-          {caseItem.verificationRecords.map((v) => (
-            <div key={v.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Tag color={v.result === 'PASSED' ? 'green' : 'red'}>
-                  {v.result === 'PASSED' ? '通过' : '失败'}
-                </Tag>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {fmtShort(v.createdAt)}
-                </Typography.Text>
-              </div>
-              {v.comment && (
-                <Typography.Paragraph style={{ margin: '4px 0 0', fontSize: 13 }}>
-                  {v.comment}
-                </Typography.Paragraph>
-              )}
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* =========================== Shared: PR List =========================== */
-
-function PrList({ caseItem }: { caseItem: CaseV2 }) {
-  if (caseItem.pullRequests.length === 0) {
-    return <Empty description="暂无 PR" />;
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {caseItem.pullRequests.map((pr) => (
-        <div key={pr.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Tag color={pr.state === 'MERGED' ? 'green' : pr.state === 'OPEN' ? 'blue' : 'default'}>
-                {pr.state}
-              </Tag>
-              <Typography.Link href={pr.url} target="_blank">
-                #{pr.number}
+            {r.url && (
+              <Typography.Link href={r.url} target="_blank" style={{ fontSize: 12 }}>
+                查看
               </Typography.Link>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {pr.sourceBranch} → {pr.targetBranch}
-              </Typography.Text>
-            </div>
-            <Tag style={{ fontSize: 11 }}>{pr.originType}</Tag>
+            )}
           </div>
         </div>
       ))}
@@ -686,87 +586,28 @@ function PrList({ caseItem }: { caseItem: CaseV2 }) {
   );
 }
 
-/* =========================== Workflow Buttons (Right Sidebar) =========================== */
+/* =========================== 验证记录 =========================== */
 
-function WorkflowButtons({
-  caseItem,
-  onStatusChange,
-  onRefresh,
-}: {
-  caseItem: CaseV2;
-  onStatusChange: (id: string, s: CaseStatus) => Promise<void>;
-  onRefresh: () => Promise<void>;
-}) {
-  const { can, user } = useSession();
-
-  if (!can('case.status.modify')) return null;
-
-  const doTransition = async (next: CaseStatus) => {
-    await onStatusChange(caseItem.id, next);
-    await onRefresh();
-  };
-
+function VerificationSection({ caseItem }: { caseItem: CaseV2 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Typography.Text type="secondary" style={{ fontSize: 12, marginBottom: 4 }}>
-        Workflow
-      </Typography.Text>
-
-      {caseItem.status === 'PENDING_ANALYSIS' && (
-        <Button type="primary" block onClick={() => doTransition('ANALYZING')}>
-          开始分析
-        </Button>
-      )}
-
-      {caseItem.status === 'ANALYZING' && (
-        <Button type="primary" block onClick={() => doTransition('ANALYSIS_COMPLETED')}>
-          分析完成
-        </Button>
-      )}
-
-      {caseItem.status === 'ANALYSIS_COMPLETED' && (
-        <Button type="primary" block onClick={() => doTransition('DEVELOPING')}>
-          开始开发
-        </Button>
-      )}
-
-      {caseItem.status === 'DEVELOPING' && (
-        <Button type="primary" block onClick={() => doTransition('DEPLOYING')}>
-          开始部署
-        </Button>
-      )}
-
-      {caseItem.status === 'DEPLOYED' && (
-        <Button type="primary" block onClick={() => doTransition('PENDING_VERIFICATION')}>
-          进入验证
-        </Button>
-      )}
-
-      {caseItem.status === 'PENDING_VERIFICATION' && (
-        <>
-          <Button type="primary" block onClick={() => doTransition('COMPLETED')}>
-            验证通过
-          </Button>
-          <Button block danger onClick={() => doTransition('DEVELOPING')}>
-            验证失败
-          </Button>
-        </>
-      )}
-
-      {caseItem.status === 'COMPLETED' && (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Case 已关闭
-        </Typography.Text>
-      )}
-
-      {caseItem.status === 'DEPLOYING' && (
-        <Button block onClick={async () => {
-          await api.completeUat(caseItem.id, user.email);
-          await onRefresh();
-        }}>
-          UAT 部署完成
-        </Button>
-      )}
+      {caseItem.verificationRecords.map((v) => (
+        <div key={v.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Tag color={v.result === 'PASSED' ? 'green' : 'red'}>
+              {v.result === 'PASSED' ? '通过' : '失败'}
+            </Tag>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {fmtShort(v.createdAt)}
+            </Typography.Text>
+          </div>
+          {v.comment && (
+            <Typography.Paragraph style={{ margin: '4px 0 0', fontSize: 13 }}>
+              {v.comment}
+            </Typography.Paragraph>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
