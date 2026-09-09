@@ -123,7 +123,7 @@ export function DashboardPage() {
                 </Typography.Text>
               )}
               {data?.pendingVerification != null && data.pendingVerification > 0 && (
-                <Typography.Text style={{ fontSize: 12, color: '#722ED1' }}>
+                <Typography.Text style={{ fontSize: 12, color: CASE_STATUS_META.PENDING_VERIFICATION.color }}>
                   待验证 {data.pendingVerification}
                 </Typography.Text>
               )}

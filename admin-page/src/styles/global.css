@@ -1,12 +1,12 @@
 /* 控制台骨架样式：令牌值与插件 styles/theme.css 一致，
    antd 组件走 theme.ts，这里只补布局 */
 :root {
-  --sh-brand: #b4e968;
-  --sh-accent: #527e14;
-  --sh-accent-soft: #edfade;
-  --sh-ink: #1b2117;
-  --sh-muted: #8a9184;
-  --sh-line: #e8eae2;
+  --sh-brand: #80C776;
+  --sh-accent: #255A41;
+  --sh-accent-soft: #EAF7E7;
+  --sh-ink: #141414;
+  --sh-muted: #838280;
+  --sh-line: #DDDDDD;
   --sh-surface: #fff;
 }
 
@@ -218,9 +218,9 @@ body,
 }
 
 .ac-steps__item.is-rejected .ac-steps__dot {
-  background: #fff1f0;
-  border-color: #cf1322;
-  color: #cf1322;
+  background: #FDEDED;
+  border-color: #EC5B56;
+  color: #EC5B56;
 }
 
 .ac-legend {
@@ -328,7 +328,7 @@ body,
   margin-bottom: 10px;
   border: 1px solid var(--sh-line);
   border-radius: 10px;
-  background: #fcfcf9;
+  background: #F3F3F3;
 }
 
 .ac-field-map {
@@ -360,7 +360,7 @@ body,
 }
 
 .ac-kpi__delta.is-down {
-  color: #cf1322;
+  color: #EC5B56;
 }
 
 /* 趋势图：一天三根柱子（Case / Finding / JIRA） */
@@ -380,11 +380,11 @@ body,
 }
 
 .ac-trend__bars i.is-finding {
-  background: #8fbf4f;
+  background: #6DB863;
 }
 
 .ac-trend__bars i.is-jira {
-  background: #c9dcb2;
+  background: #CDECC8;
 }
 
 .ac-trend__col i {
@@ -401,7 +401,7 @@ body,
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 18px;
-  background: #fcfcf9;
+  background: #F3F3F3;
 }
 
 .ac-validate__row {
@@ -426,6 +426,6 @@ body,
 }
 
 .ac-validate__row.is-bad .ac-validate__mark {
-  background: #fff1f0;
-  color: #cf1322;
+  background: #FDEDED;
+  color: #EC5B56;
 }

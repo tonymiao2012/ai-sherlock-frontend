@@ -19,6 +19,7 @@ import type {
 } from '../types';
 import { CASE_STATUS_META, getNextStatuses } from '../domain/caseLifecycle';
 import { SEVERITY_META } from '../domain/ticket';
+import { palette } from '../theme';
 import { CaseStatusTag } from './CaseStatusTag';
 import { useSession } from '../context/Session';
 import * as api from '../services/api';
@@ -256,7 +257,7 @@ function FindingsTab({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {currentFindings.map((f) => (
-        <div key={f.id} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 16 }}>
+        <div key={f.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 8, padding: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Typography.Text strong>{f.findingKey}</Typography.Text>
@@ -419,7 +420,7 @@ function CommentThread({
         评论 ({finding.comments.length})
       </Typography.Text>
       {finding.comments.map((c) => (
-        <div key={c.id} style={{ marginBottom: 8, paddingLeft: 8, borderLeft: '2px solid #f0f0f0' }}>
+        <div key={c.id} style={{ marginBottom: 8, paddingLeft: 8, borderLeft: `2px solid ${palette.line}` }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Tag
               color={c.authorType === 'USER' ? 'blue' : c.authorType === 'DEVIN' ? 'purple' : 'default'}
@@ -482,7 +483,7 @@ function PrDeployTab({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () 
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
           {caseItem.pullRequests.map((pr) => (
-            <div key={pr.id} style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px' }}>
+            <div key={pr.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <Tag color={pr.state === 'MERGED' ? 'green' : pr.state === 'OPEN' ? 'blue' : 'default'}>
@@ -508,7 +509,7 @@ function PrDeployTab({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () 
             Merge Batches
           </Typography.Text>
           {caseItem.mergeBatches.map((b) => (
-            <div key={b.id} style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+            <div key={b.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Tag color={b.status === 'COMPLETED' ? 'green' : b.status === 'FAILED' ? 'red' : 'blue'}>
                   {b.status}
@@ -529,7 +530,7 @@ function PrDeployTab({ caseItem, onRefresh }: { caseItem: CaseV2; onRefresh: () 
         <Empty description="暂无部署" />
       ) : (
         caseItem.deploymentRuns.map((r) => (
-          <div key={r.id} style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+          <div key={r.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Tag
                 color={r.status === 'SUCCEEDED' ? 'green' : r.status === 'FAILED' ? 'red' : 'blue'}
@@ -594,7 +595,7 @@ function HistoryTab({ caseItem }: { caseItem: CaseV2 }) {
         <Empty description="暂无验证记录" />
       ) : (
         caseItem.verificationRecords.map((v) => (
-          <div key={v.id} style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+          <div key={v.id} style={{ border: `1px solid ${palette.line}`, borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Tag color={v.result === 'PASSED' ? 'green' : 'red'}>{v.result === 'PASSED' ? '通过' : '失败'}</Tag>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>

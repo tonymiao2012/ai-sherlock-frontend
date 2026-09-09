@@ -13,12 +13,12 @@ import type {
 export const MAIN_STAGES: Stage[] = ['ANALYZING', 'DEVELOPING', 'VERIFYING', 'DEPLOYING', 'DONE'];
 
 export const STAGE_META: Record<Stage, { label: string; color: string; bg: string; desc: string }> = {
-  ANALYZING: { label: '分析态', color: '#1D5BBF', bg: '#EAF2FF', desc: 'LLM 采证与分析，等待 Owner 审批修复' },
-  DEVELOPING: { label: '开发中', color: '#AD4E00', bg: '#FFF3E6', desc: '已批准修复，AI 改代码并创建 PR（Fix + PR）' },
-  VERIFYING: { label: '验证', color: '#5B2E9C', bg: '#F3ECFF', desc: 'PR 在 Bitbucket 由人工 Review、验证改动' },
-  DEPLOYING: { label: '部署', color: '#08605F', bg: '#E4F6F4', desc: '已 Merge，触发 UAT 发布并等待结果' },
-  REJECTED: { label: '拒绝', color: '#CF1322', bg: '#FFF1F0', desc: '分析结论或 PR 被拒绝，工单终态' },
-  DONE: { label: '完成', color: '#3C6B0B', bg: '#EDFADE', desc: 'UAT 发布成功并在 JIRA 关单' },
+  ANALYZING: { label: '分析态', color: '#3B81E9', bg: '#EBF3FE', desc: 'LLM 采证与分析，等待 Owner 审批修复' },
+  DEVELOPING: { label: '开发中', color: '#EA873F', bg: '#FDF3E8', desc: '已批准修复，AI 改代码并创建 PR（Fix + PR）' },
+  VERIFYING: { label: '验证', color: '#605CE5', bg: '#EEEEFD', desc: 'PR 在 Bitbucket 由人工 Review、验证改动' },
+  DEPLOYING: { label: '部署', color: '#55B5A6', bg: '#EDF8F6', desc: '已 Merge，触发 UAT 发布并等待结果' },
+  REJECTED: { label: '拒绝', color: '#EC5B56', bg: '#FDEDED', desc: '分析结论或 PR 被拒绝，工单终态' },
+  DONE: { label: '完成', color: '#255A41', bg: '#EAF7E7', desc: 'UAT 发布成功并在 JIRA 关单' },
 };
 
 export const FIX_STATUS_META: Record<FixPipelineStatus, string> = {
@@ -58,9 +58,9 @@ export const UAT_META: Record<UatStatus, string> = {
 };
 
 export const SEVERITY_META: Record<Severity, { label: string; color: string }> = {
-  Critical: { label: 'Critical', color: '#CF1322' },
-  Major: { label: 'Major', color: '#AD4E00' },
-  Minor: { label: 'Minor', color: '#8A9184' },
+  Critical: { label: 'Critical', color: '#EC5B56' },
+  Major: { label: 'Major', color: '#EA873F' },
+  Minor: { label: 'Minor', color: '#838280' },
 };
 
 export const FINDING_TYPE_META = {

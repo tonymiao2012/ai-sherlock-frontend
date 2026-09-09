@@ -3,26 +3,26 @@
 import type { ThemeConfig } from 'antd';
 
 export const palette = {
-  brand: '#B4E968',
-  brandHover: '#C4EF82',
-  brandActive: '#9BD24C',
-  brandInk: '#17240C',
-  accent: '#527E14',
-  accentSoft: '#EDFADE',
-  accentLine: '#D9EFC2',
+  brand: '#80C776',
+  brandHover: '#6DB863',
+  brandActive: '#255A41',
+  brandInk: '#FFFFFF',
+  accent: '#255A41',
+  accentSoft: '#EAF7E7',
+  accentLine: '#CDECC8',
 
-  ink: '#1B2117',
-  text: '#454C3F',
-  muted: '#8A9184',
+  ink: '#141414',
+  text: '#141414',
+  muted: '#838280',
 
-  bg: '#F6F7F2',
+  bg: '#F2F4F2',
   surface: '#FFFFFF',
-  sunken: '#EEF0E7',
-  line: '#E8EAE2',
+  sunken: '#F3F3F3',
+  line: '#DDDDDD',
 
-  danger: '#CF1322',
-  dangerSoft: '#FFF1F0',
-  dangerLine: '#FFCCC7',
+  danger: '#EC5B56',
+  dangerSoft: '#FDEDED',
+  dangerLine: '#F5B7B4',
 } as const;
 
 export const fontFamily =
@@ -67,9 +67,9 @@ export const sherlockTheme: ThemeConfig = {
       colorBorderSecondary: palette.line,
     },
     Input: {
-      hoverBorderColor: palette.brandActive,
+      hoverBorderColor: palette.brandHover,
       activeBorderColor: palette.brand,
-      activeShadow: '0 0 0 3px rgba(180, 233, 104, 0.28)',
+      activeShadow: '0 0 0 3px rgba(128, 199, 118, 0.22)',
     },
     Tag: {
       defaultBg: palette.sunken,
@@ -97,6 +97,12 @@ export const sherlockTheme: ThemeConfig = {
       headerColor: palette.ink,
       borderColor: palette.line,
       rowHoverBg: palette.accentSoft,
+    },
+    Tabs: {
+      inkBarColor: palette.accent,
+      itemActiveColor: palette.ink,
+      itemSelectedColor: palette.ink,
+      itemHoverColor: palette.text,
     },
   },
 };
