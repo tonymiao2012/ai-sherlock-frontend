@@ -8,7 +8,7 @@ import { CASE_STATUS_META } from '../domain/caseLifecycle';
 import { fmtShort } from '../domain/format';
 import { useSession } from '../context/Session';
 import { CaseStatusTag } from '../components/CaseStatusTag';
-import { CaseDrawer } from '../components/CaseDrawer';
+import { CaseDetailModal } from '../components/CaseDetailModal';
 
 export function CasesPage() {
   const { visibleProjects, visibleCases, user, userName } = useSession();
@@ -58,11 +58,9 @@ export function CasesPage() {
       title: 'Case',
       dataIndex: 'caseKey',
       width: 240,
-      render: (v: string, c) => (
+      render: (v: string) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Typography.Link strong onClick={() => setActive(c)}>
-            {v}
-          </Typography.Link>
+          <Typography.Text strong>{v}</Typography.Text>
           <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }} />
         </div>
       ),
@@ -166,7 +164,7 @@ export function CasesPage() {
         })}
         pagination={{ pageSize: 10, size: 'small', showTotal: (t) => `共 ${t} 条 Case` }}
       />
-      <CaseDrawer
+      <CaseDetailModal
         caseItem={active}
         open={Boolean(active)}
         onClose={() => setActive(undefined)}
