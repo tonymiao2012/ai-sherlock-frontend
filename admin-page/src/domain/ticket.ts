@@ -18,7 +18,7 @@ export const STAGE_META: Record<Stage, { label: string; color: string; bg: strin
   VERIFYING: { label: '验证', color: '#605CE5', bg: '#EEEEFD', desc: 'PR 在 Bitbucket 由人工 Review、验证改动' },
   DEPLOYING: { label: '部署', color: '#55B5A6', bg: '#EDF8F6', desc: '已 Merge，触发 UAT 发布并等待结果' },
   REJECTED: { label: '拒绝', color: '#EC5B56', bg: '#FDEDED', desc: '分析结论或 PR 被拒绝，工单终态' },
-  DONE: { label: '完成', color: '#255A41', bg: '#EAF7E7', desc: 'UAT 发布成功并在 JIRA 关单' },
+  DONE: { label: '完成', color: '#39AD69', bg: '#EDF9F1', desc: 'UAT 发布成功并在 JIRA 关单' },
 };
 
 export const FIX_STATUS_META: Record<FixPipelineStatus, string> = {

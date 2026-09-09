@@ -4,13 +4,13 @@ import type { CaseStatus, CaseV2, DeploymentRun } from '../types';
 export const CASE_STATUS_META: Record<CaseStatus, { label: string; color: string; bg: string }> = {
   PENDING_ANALYSIS:     { label: '待开始',   color: '#838280', bg: '#F3F3F3' },
   ANALYZING:            { label: '分析中',   color: '#3B81E9', bg: '#EBF3FE' },
-  ANALYSIS_COMPLETED:   { label: '分析结束', color: '#399E74', bg: '#EAF7E7' },
+  ANALYSIS_COMPLETED:   { label: '分析结束', color: '#39AD69', bg: '#EDF9F1' },
   DEVELOPING:           { label: '开发中',   color: '#EA873F', bg: '#FDF3E8' },
   DEPLOYING:            { label: '部署中',   color: '#55B5A6', bg: '#EDF8F6' },
   DEPLOY_FAILED:        { label: '部署失败', color: '#EC5B56', bg: '#FDEDED' },
   DEPLOYED:             { label: '部署完成', color: '#605CE5', bg: '#EEEEFD' },
   PENDING_VERIFICATION: { label: '待验证',   color: '#B49EF9', bg: '#F5F1FE' },
-  COMPLETED:            { label: '已完成',   color: '#255A41', bg: '#EAF7E7' },
+  COMPLETED:            { label: '已完成',   color: '#39AD69', bg: '#EDF9F1' },
 };
 
 /** 合法状态转换表（docs/case-lifecycle-architecture-design.md §5 stateDiagram） */

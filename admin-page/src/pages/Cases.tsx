@@ -5,10 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CaseV2, CaseStatus } from '../types';
 import * as api from '../services/api';
 import { CASE_STATUS_META } from '../domain/caseLifecycle';
-import { fmtShort, timeAgo } from '../domain/format';
+import { fmtShort } from '../domain/format';
 import { useSession } from '../context/Session';
 import { CaseStatusTag } from '../components/CaseStatusTag';
-import { CaseActions } from '../components/CaseActions';
 import { CaseDrawer } from '../components/CaseDrawer';
 
 export function CasesPage() {
@@ -42,10 +41,12 @@ export function CasesPage() {
       .sort((a, b) => +new Date(b.reportedAt) - +new Date(a.reportedAt));
   }, [cases, visibleCases, keyword, projectId, status, onlyMine, user.id]);
 
+  /* TODO: 操作列恢复时取消注释
   const handleAssign = async (caseId: string, assigneeId: string) => {
     const updated = await api.assignCase(caseId, assigneeId, user.email);
     setCases((prev) => prev.map((c) => (c.id === caseId ? updated : c)));
   };
+  */
 
   const handleStatusChange = async (caseId: string, newStatus: CaseStatus) => {
     const updated = await api.changeCaseStatus(caseId, newStatus, user.email);
@@ -56,81 +57,53 @@ export function CasesPage() {
     {
       title: 'Case',
       dataIndex: 'caseKey',
-      width: 180,
+      width: 240,
       render: (v: string, c) => (
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Typography.Link strong onClick={() => setActive(c)}>
             {v}
           </Typography.Link>
-          <div className="ac-meta">
-            <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }} />
-          </div>
+          <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }} />
         </div>
       ),
     },
     {
       title: '问题',
       dataIndex: 'title',
-      render: (v: string, c) => (
-        <div>
-          <div className="ac-ticket__title">{v}</div>
-          <div className="ac-meta" style={{ marginTop: 2 }}>
-            <span>{c.pageUrl.replace(/^https?:\/\//, '').slice(0, 40)}</span>
-            <span>{c.buildVersion}</span>
-          </div>
-        </div>
-      ),
+      render: (v: string) => <div className="ac-ticket__title">{v}</div>,
     },
     {
-      title: '项目',
-      dataIndex: 'projectId',
-      width: 96,
-      render: (id: string) => visibleProjects.find((p) => p.id === id)?.name ?? '—',
-    },
-    {
-      title: '严重',
+      title: '严重程度',
       dataIndex: 'severity',
-      width: 72,
-    },
-    {
-      title: '环境',
-      dataIndex: 'environment',
-      width: 66,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 96,
-      render: (v: CaseStatus) => <CaseStatusTag status={v} />,
-    },
-    {
-      title: '负责人',
-      dataIndex: 'assigneeId',
       width: 100,
+    },
+    {
+      title: '跟进人',
+      dataIndex: 'assigneeId',
+      width: 110,
       render: (id: string | undefined) => (id ? userName(id) : '—'),
     },
     {
       title: '上报时间',
       dataIndex: 'reportedAt',
-      width: 104,
-      render: (v: string) => (
-        <div>
-          <div>{fmtShort(v)}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {timeAgo(v)}
-          </Typography.Text>
-        </div>
-      ),
+      width: 160,
+      render: (v: string) => fmtShort(v),
     },
     {
-      title: '操作',
-      key: 'ops',
-      fixed: 'right',
-      width: 160,
-      render: (_, c) => (
-        <CaseActions caseItem={c} onAssign={handleAssign} onStatusChange={handleStatusChange} />
-      ),
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (v: CaseStatus) => <CaseStatusTag status={v} />,
     },
+    // {
+    //   title: '操作',
+    //   key: 'ops',
+    //   fixed: 'right',
+    //   width: 160,
+    //   render: (_, c) => (
+    //     <CaseActions caseItem={c} onAssign={handleAssign} onStatusChange={handleStatusChange} />
+    //   ),
+    // },
   ];
 
   return (
@@ -183,11 +156,14 @@ export function CasesPage() {
       </Space>
       <Table<CaseV2>
         rowKey="id"
-        size="small"
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1300 }}
+        onRow={(record) => ({
+          onClick: () => setActive(record),
+          style: { cursor: 'pointer' },
+        })}
         pagination={{ pageSize: 10, size: 'small', showTotal: (t) => `共 ${t} 条 Case` }}
       />
       <CaseDrawer

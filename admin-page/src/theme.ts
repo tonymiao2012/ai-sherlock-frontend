@@ -5,10 +5,10 @@ import type { ThemeConfig } from 'antd';
 export const palette = {
   brand: '#80C776',
   brandHover: '#6DB863',
-  brandActive: '#255A41',
+  brandActive: '#39AD69',
   brandInk: '#FFFFFF',
-  accent: '#255A41',
-  accentSoft: '#EAF7E7',
+  accent: '#39AD69',
+  accentSoft: '#EDF9F1',
   accentLine: '#CDECC8',
 
   ink: '#141414',

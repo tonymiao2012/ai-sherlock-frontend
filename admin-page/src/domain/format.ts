@@ -9,7 +9,7 @@ export function fmtDateTime(v?: string): string {
 export function fmtShort(v?: string): string {
   if (!v) return '—';
   const d = new Date(v);
-  return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function timeAgo(v?: string): string {

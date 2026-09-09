@@ -62,23 +62,18 @@ export function ConsoleLayout() {
             />
           </Space>
           <Space size={12}>
-            <Space size={6}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                身份
-              </Typography.Text>
-              <Select
-                size="small"
-                style={{ width: 210 }}
-                value={user.id}
-                onChange={switchUser}
-                options={(['ADMIN', 'OWNER', 'STAFF'] as NewRole[]).map((r) => ({
-                  label: ROLE_LABEL[r],
-                  options: users
-                    .filter((u) => u.role === r)
-                    .map((u) => ({ value: u.id, label: `${u.name} · ${u.email}` })),
-                }))}
-              />
-            </Space>
+            <Select
+              size="small"
+              style={{ width: 260 }}
+              value={user.id}
+              onChange={switchUser}
+              options={(['ADMIN', 'OWNER', 'STAFF'] as NewRole[]).map((r) => ({
+                label: ROLE_LABEL[r],
+                options: users
+                  .filter((u) => u.role === r)
+                  .map((u) => ({ value: u.id, label: `${u.name} · ${u.email}` })),
+              }))}
+            />
             <span className="ac-user">
               <Avatar size={26}>{user.name.slice(0, 1)}</Avatar>
               {user.email}
