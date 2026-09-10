@@ -19,7 +19,8 @@ body,
 }
 
 .ac-root {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .ac-sider {
@@ -72,6 +73,7 @@ body,
 .ac-content {
   padding: 20px;
   overflow: auto;
+  min-height: 0;
 }
 
 .ac-kpi__suffix {
