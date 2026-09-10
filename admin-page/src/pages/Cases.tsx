@@ -107,54 +107,50 @@ export function CasesPage() {
       title="Case 列表"
       styles={{ body: { paddingTop: 14 } }}
       extra={
-        <Typography.Text type="secondary">
-          当前身份：{userName(user.id)}（{user.role}）· 可见项目 {visibleProjects.length} 个
-        </Typography.Text>
+        <Space wrap>
+          <Input
+            allowClear
+            style={{ width: 240 }}
+            prefix={<SearchOutlined />}
+            placeholder="搜索 Case Key / 标题 / 页面"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <Select
+            allowClear
+            style={{ width: 158 }}
+            placeholder="全部项目"
+            value={projectId}
+            onChange={setProjectId}
+            options={visibleProjects.map((p) => ({ value: p.id, label: p.name }))}
+          />
+          <Select
+            allowClear
+            style={{ width: 132 }}
+            placeholder="全部状态"
+            value={status}
+            onChange={setStatus}
+            options={(Object.entries(CASE_STATUS_META) as [CaseStatus, { label: string }][]).map(([v, meta]) => ({
+              value: v,
+              label: meta.label,
+            }))}
+          />
+          <Select
+            allowClear
+            style={{ width: 140 }}
+            placeholder="全部人员"
+            value={onlyMine ? 'mine' : undefined}
+            onChange={(v) => setOnlyMine(v === 'mine')}
+            options={[{ value: 'mine', label: '分配给我的' }]}
+          />
+        </Space>
       }
     >
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Input
-          allowClear
-          style={{ width: 240 }}
-          prefix={<SearchOutlined />}
-          placeholder="搜索 Case Key / 标题 / 页面"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-        <Select
-          allowClear
-          style={{ width: 158 }}
-          placeholder="全部项目"
-          value={projectId}
-          onChange={setProjectId}
-          options={visibleProjects.map((p) => ({ value: p.id, label: p.name }))}
-        />
-        <Select
-          allowClear
-          style={{ width: 132 }}
-          placeholder="全部状态"
-          value={status}
-          onChange={setStatus}
-          options={(Object.entries(CASE_STATUS_META) as [CaseStatus, { label: string }][]).map(([v, meta]) => ({
-            value: v,
-            label: meta.label,
-          }))}
-        />
-        <Select
-          allowClear
-          style={{ width: 140 }}
-          placeholder="全部人员"
-          value={onlyMine ? 'mine' : undefined}
-          onChange={(v) => setOnlyMine(v === 'mine')}
-          options={[{ value: 'mine', label: '分配给我的' }]}
-        />
-      </Space>
       <Table<CaseV2>
         rowKey="id"
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1300 }}
         onRow={(record) => ({
           onClick: () => setActive(record),
           style: { cursor: 'pointer' },
