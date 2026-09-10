@@ -186,7 +186,7 @@ function selectRegion(src: HTMLCanvasElement): Promise<SelectOutcome> {
 
     const sizeLabel = document.createElement('div');
     sizeLabel.style.cssText =
-      'position:fixed;display:none;background:#B4E968;color:#17240C;font:600 12px/1.6 ui-monospace,SFMono-Regular,monospace;padding:2px 8px;border-radius:6px;pointer-events:none;';
+      'position:fixed;display:none;background:#67B820;color:#17240C;font:600 12px/1.6 ui-monospace,SFMono-Regular,monospace;padding:2px 8px;border-radius:6px;pointer-events:none;';
 
     const hintBar = document.createElement('div');
     hintBar.textContent = 'Drag to select  ·  F full page  ·  Esc / right-click cancel';
@@ -396,10 +396,10 @@ function openAnnotationEditor(
 .sh-ed-sep{width:1px;height:18px;background:#E8EAE2;margin:0 4px;flex:none}
 .sh-ed-tool{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:8px;cursor:pointer;color:#454C3F;padding:0;flex:none}
 .sh-ed-tool:hover{background:#EEF0E7}
-.sh-ed-tool[data-on="1"]{background:#EDFADE;color:#527E14}
+.sh-ed-tool[data-on="1"]{background:#F3FAE9;color:#67B820}
 .sh-ed-tool[disabled]{color:#C9CEC2;cursor:default;background:transparent}
-.sh-ed-ok{background:#B4E968;color:#17240C;border-radius:8px}
-.sh-ed-ok:hover{background:#C4EF82}
+.sh-ed-ok{background:#67B820;color:#17240C;border-radius:8px}
+.sh-ed-ok:hover{background:#7CC94A}
 .sh-ed-hint{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(23,36,12,.85);color:#fff;font:13px/1.6 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;padding:5px 14px;border-radius:999px;pointer-events:none;letter-spacing:.2px}
 .sh-ed-input{position:fixed;background:transparent;border:none;outline:2px dashed rgba(255,255,255,.9);border-radius:2px;padding:0 2px;margin:0;font-weight:600;min-width:60px}
 `;

@@ -321,7 +321,9 @@ function makeFinding(
 
 /* -------- CASES_V2（覆盖主流程各状态） -------- */
 
-export const CASES_V2: CaseV2[] = [
+type CaseV2Seed = Omit<CaseV2, 'pageContext' | 'screenshotCount' | 'replayEventCount'>;
+
+const CASES_V2_SEED: CaseV2Seed[] = [
   {
     id: 'c_1',
     caseKey: 'SH-20260908-D912E568',
@@ -677,20 +679,23 @@ const SITE_NAMES: Record<string, string> = {
   'cs.company.com': '客户服务',
 };
 
-CASES_V2.forEach((c, i) => {
+export const CASES_V2: CaseV2[] = CASES_V2_SEED.map((c, i): CaseV2 => {
   const url = new URL(c.pageUrl);
   const route = url.pathname || '/';
   const site = SITE_NAMES[url.host] ?? url.host;
-  c.pageContext = {
-    route,
-    title: `${site} — ${route === '/' ? '首页' : route.slice(1).replace(/\//g, ' / ')}`,
-    viewport: '1512×854',
-    language: 'zh-CN',
-    submittedAt: c.reportedAt,
-    userAgent: MOCK_UA,
+  return {
+    ...c,
+    pageContext: {
+      route,
+      title: `${site} — ${route === '/' ? '首页' : route.slice(1).replace(/\//g, ' / ')}`,
+      viewport: '1512×854',
+      language: 'zh-CN',
+      submittedAt: c.reportedAt,
+      userAgent: MOCK_UA,
+    },
+    screenshotCount: [1, 2, 1, 0, 3, 1, 2, 1, 0, 2][i] ?? 1,
+    replayEventCount: [86, 0, 240, 0, 512, 130, 0, 64, 0, 118][i] ?? 0,
   };
-  c.screenshotCount = [1, 2, 1, 0, 3, 1, 2, 1, 0, 2][i] ?? 1;
-  c.replayEventCount = [86, 0, 240, 0, 512, 130, 0, 64, 0, 118][i] ?? 0;
 });
 
 const jiraSite = 'https://jira.company.com';

@@ -1,9 +1,9 @@
 /* 控制台骨架样式：令牌值与插件 styles/theme.css 一致，
    antd 组件走 theme.ts，这里只补布局 */
 :root {
-  --sh-brand: #80C776;
-  --sh-accent: #39AD69;
-  --sh-accent-soft: #EDF9F1;
+  --sh-brand: #B4E968;
+  --sh-accent: #67B820;
+  --sh-accent-soft: #F3FAE9;
   --sh-ink: #141414;
   --sh-muted: #838280;
   --sh-line: #DDDDDD;
@@ -380,11 +380,11 @@ body,
 }
 
 .ac-trend__bars i.is-finding {
-  background: #6DB863;
+  background: #67B820;
 }
 
 .ac-trend__bars i.is-jira {
-  background: #CDECC8;
+  background: #D7EFBB;
 }
 
 .ac-trend__col i {

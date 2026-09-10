@@ -3,16 +3,19 @@
 import type { ThemeConfig } from 'antd';
 
 export const palette = {
-  /** 品牌色：Qoder 柔和绿，用于主按钮底色、选中态 */
-  brand: '#80C776',
-  brandHover: '#6DB863',
-  brandActive: '#255A41',
-  /** 品牌色之上的文字（白字在深绿底上） */
-  brandInk: '#FFFFFF',
-  /** 白底上可读的强调绿（文字/图标） */
-  accent: '#255A41',
-  accentSoft: '#EAF7E7',
-  accentLine: '#CDECC8',
+  /** 浅绿：主按钮底色，配深墨字 */
+  brand: '#B4E968',
+  brandHover: '#C4EF82',
+  brandActive: '#9BD24C',
+  /** 浅绿底之上的文字（深墨字） */
+  brandInk: '#17240C',
+  /** 品牌绿：白底上的强调文字/链接/选中态 */
+  accent: '#67B820',
+  accentHover: '#57A31B',
+  accentActive: '#47890F',
+  /** 淡绿：选中/悬停的柔和底色 */
+  accentSoft: '#F3FAE9',
+  accentLine: '#D7EFBB',
 
   ink: '#141414',
   text: '#141414',
@@ -40,7 +43,7 @@ export const sherlockTheme: ThemeConfig = {
     colorPrimaryActive: palette.brandActive,
     colorTextLightSolid: palette.brandInk,
     colorLink: palette.accent,
-    colorLinkHover: palette.brandActive,
+    colorLinkHover: palette.accentHover,
 
     colorText: palette.text,
     colorTextSecondary: palette.muted,
@@ -73,9 +76,9 @@ export const sherlockTheme: ThemeConfig = {
     },
     Input: {
       colorBgContainer: palette.surface,
-      hoverBorderColor: palette.brandHover,
-      activeBorderColor: palette.brand,
-      activeShadow: '0 0 0 3px rgba(128, 199, 118, 0.22)',
+      hoverBorderColor: palette.accentHover,
+      activeBorderColor: palette.accent,
+      activeShadow: '0 0 0 3px rgba(103, 184, 32, 0.22)',
     },
     Tag: {
       defaultBg: palette.sunken,
@@ -84,8 +87,8 @@ export const sherlockTheme: ThemeConfig = {
     },
     Tabs: {
       inkBarColor: palette.accent,
-      itemActiveColor: palette.ink,
-      itemSelectedColor: palette.ink,
+      itemActiveColor: palette.accent,
+      itemSelectedColor: palette.accent,
     },
     Table: {
       headerBg: palette.sunken,

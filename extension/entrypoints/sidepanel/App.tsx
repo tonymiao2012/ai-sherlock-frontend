@@ -31,12 +31,6 @@ function isResolvedStatus(status?: string): boolean {
   return ['DIAGNOSED', 'VERIFIED', 'VERIFY_SUCCESS', 'COMPLETED'].includes(s);
 }
 
-// 验证通过（VERIFIED/COMPLETED）即归档，见 docs/issue-status-standard.md
-function isArchivedStatus(status?: string): boolean {
-  const s = status?.toUpperCase() ?? '';
-  return ['VERIFIED', 'VERIFY_SUCCESS', 'COMPLETED'].includes(s);
-}
-
 function statusColor(status?: string): string {
   const s = status?.toUpperCase() ?? '';
   if (isPendingVerifyStatus(s)) return 'red';
@@ -85,8 +79,8 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
               background: pending ? '#fff1f0' : '#fff',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#B4E968';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(180,233,104,0.3)';
+              e.currentTarget.style.borderColor = 'var(--sh-brand)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(103,184,32,0.3)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = pending ? '#ff4d4f' : '#e8e8e8';
@@ -195,7 +189,7 @@ export default function App() {
     };
   }, [draftReady, title, text, shots, recordInfo]);
 
-  // 加载 Case 列表（打开面板 + 每次切到 Cases/Archive tab 都从后端同步最新状态；轮询每轮只拉一次）
+  // 加载 Case 列表（点击 Cases tab 从后端同步最新状态；打开面板时拉一次）
   // 已有数据时静默刷新，旧列表原地保留，避免切 Tab 闪 Loading
   const refreshCases = () => {
     if (cases.length === 0) setCasesLoading(true);
@@ -219,10 +213,11 @@ export default function App() {
       .finally(() => setCasesLoading(false));
   };
 
-  useEffect(() => {
-    if (activeTab === 'cases' || activeTab === 'archive') refreshCases();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  // 所有 tab 切换都走这里；Cases 每次点击都重新拉列表（含已选中态的重复点击）
+  const openTab = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'cases') refreshCases();
+  };
 
   // 打开面板拉一次列表；待验证数量由后台轮询写入 storage，这里监听变化实时更新红点
   useEffect(() => {
@@ -424,7 +419,7 @@ export default function App() {
           }}
         >
           <button
-            onClick={() => setActiveTab('submit')}
+            onClick={() => openTab('submit')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -443,7 +438,7 @@ export default function App() {
             Issue
           </button>
           <button
-            onClick={() => setActiveTab('cases')}
+            onClick={() => openTab('cases')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -477,25 +472,6 @@ export default function App() {
                 {pendingVerifyCount}
               </span>
             )}
-          </button>
-          <button
-            onClick={() => setActiveTab('archive')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 22px',
-              border: 'none',
-              borderRadius: 8,
-              background: activeTab === 'archive' ? '#fff' : 'transparent',
-              cursor: 'pointer',
-              fontSize: 16,
-              fontWeight: activeTab === 'archive' ? 600 : 400,
-              color: activeTab === 'archive' ? 'var(--sh-accent)' : 'var(--sh-muted)',
-              boxShadow: activeTab === 'archive' ? '0 1px 3px rgba(23, 36, 12, 0.12)' : 'none',
-              transition: 'all 0.2s',
-            }}
-          >
-            Archive
           </button>
         </div>
       </header>
@@ -686,16 +662,6 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'archive' && (
-            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-              <CaseListPanel
-                list={cases.filter((c) => isArchivedStatus(c.status))}
-                loading={casesLoading}
-                emptyText="No archived cases"
-              />
-            </div>
-          )}
-
           {/* 底部 Submit 按钮（仅在 Submit tab 显示） */}
           {activeTab === 'submit' && (
             <div style={{
@@ -743,10 +709,10 @@ export default function App() {
           <div style={{ textAlign: 'center' }}>
             <Button
               type="primary"
-              style={{ minWidth: 140, background: '#B4E968', borderColor: '#B4E968', color: 'var(--sh-brand-ink)' }}
+              style={{ minWidth: 140, background: 'var(--sh-brand)', borderColor: 'var(--sh-brand)', color: 'var(--sh-brand-ink)' }}
               onClick={() => {
                 setSuccessInfo(null);
-                setActiveTab('cases');
+                openTab('cases');
               }}
             >
               View Cases
