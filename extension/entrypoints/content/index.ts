@@ -6,9 +6,12 @@
 import {
   CONTENT_SOURCE,
   PAGE_SOURCE,
+  PREVIEW_SOURCE,
   uid,
   type CaptureResult,
+  type ContentToPreviewMsg,
   type PageToContentMsg,
+  type PreviewToContentMsg,
   type RuntimeMessage,
 } from '../../core/messages';
 import type { EvidenceDump } from '../../core/types';
@@ -123,6 +126,68 @@ async function startReannotate(dataUrl: string): Promise<CaptureResult> {
   });
   if (!result.ok) return result;
   return { ok: true, dataUrl: result.dataUrl, annotated: true };
+}
+
+/* ---------------------------------------------------------------- 录制预览 */
+
+/** 当前打开中的预览遮罩；再次触发时先关闭（toggle） */
+let closePreview: (() => void) | null = null;
+
+/** 在当前页面上以遮罩 + iframe 预览本次录制的 rrweb 回放 */
+async function startRecordingPreview(): Promise<{ ok: boolean; error?: string }> {
+  if (closePreview) {
+    closePreview();
+    return { ok: true };
+  }
+  const dumpResp = await postCommand('dump-evidence');
+  if (!dumpResp.ok) {
+    return { ok: false, error: dumpResp.error || 'The injected page script did not respond' };
+  }
+  const events = (dumpResp.payload as EvidenceDump | undefined)?.rrwebEvents ?? [];
+  if (events.length === 0) {
+    return { ok: false, error: 'No recording on this page' };
+  }
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;';
+  const frame = document.createElement('iframe');
+  frame.src = chrome.runtime.getURL('/preview.html');
+  frame.allow = 'autoplay';
+  frame.style.cssText =
+    'width:min(94vw,1120px);height:min(88vh,800px);border:none;border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,0.5);background:#1f1f1f;';
+  overlay.appendChild(frame);
+  document.documentElement.appendChild(overlay);
+
+  const cleanup = () => {
+    overlay.remove();
+    window.removeEventListener('message', onMsg);
+    window.removeEventListener('keydown', onKey, true);
+    closePreview = null;
+  };
+  const onMsg = (e: MessageEvent) => {
+    const data = e.data as PreviewToContentMsg | undefined;
+    if (!data || data.source !== PREVIEW_SOURCE) return;
+    if (data.type === 'preview-ready') {
+      // rrweb 事件体积可观，用 postMessage 直传（structured clone），不走 chrome.storage
+      frame.contentWindow?.postMessage(
+        { source: CONTENT_SOURCE, type: 'preview-events', events } satisfies ContentToPreviewMsg,
+        new URL(frame.src).origin
+      );
+    } else if (data.type === 'preview-close') {
+      cleanup();
+    }
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') cleanup();
+  };
+  window.addEventListener('message', onMsg);
+  window.addEventListener('keydown', onKey, true);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) cleanup();
+  });
+  closePreview = cleanup;
+  return { ok: true };
 }
 
 function decodeCanvas(dataUrl?: string): Promise<HTMLCanvasElement | null> {
@@ -725,8 +790,18 @@ function listenRuntimeCommands() {
         startCapture(msg.dataUrl).then(sendResponse);
         return true;
       }
+      if (msg?.type === 'cancel-capture') {
+        // 键盘焦点在侧边栏时页面收不到 Esc，注入合成 Esc 触发覆盖层的取消监听
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        sendResponse({ ok: true });
+        return false;
+      }
       if (msg?.type === 'reannotate-image') {
         startReannotate(msg.dataUrl).then(sendResponse);
+        return true;
+      }
+      if (msg?.type === 'preview-recording') {
+        startRecordingPreview().then(sendResponse);
         return true;
       }
       if (

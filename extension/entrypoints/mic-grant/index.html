@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Sherlock 麦克风授权</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        background: #fafaf9;
+        color: #141414;
+      }
+      .card {
+        max-width: 420px;
+        padding: 32px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 14px;
+        text-align: center;
+      }
+      h1 { font-size: 18px; margin: 0 0 12px; }
+      p { font-size: 14px; line-height: 1.7; color: #555; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 id="title">正在请求麦克风权限…</h1>
+      <p id="status">浏览器即将弹出授权框，请选择「允许」。授权成功后本页会自动关闭，之后录制都会带上声音。</p>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 import { Button, Card, Col, List, Progress, Row, Space, Statistic, Table, Typography } from 'antd';
-import { ArrowDownOutlined, ArrowUpOutlined, RightOutlined } from '@ant-design/icons';
+import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CaseV2, DashboardOverview } from '../types';
@@ -38,21 +38,6 @@ export function DashboardPage() {
 
   return (
     <Row gutter={[16, 16]}>
-      <Col span={24}>
-        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Typography.Text type="secondary">
-            {user.name}（
-            {user.role === 'ADMIN' ? '系统管理员 · 全局视角' : user.role === 'OWNER' ? `Group Owner · ${visibleProjects.length} 个项目` : 'Staff · 只读'}
-            ）
-          </Typography.Text>
-          {can('case.status.modify') && pendingCases.length > 0 && (
-            <Button size="small" type="link" onClick={() => nav('/cases')} icon={<RightOutlined />}>
-              {pendingCases.length} 条待处理 Case
-            </Button>
-          )}
-        </Space>
-      </Col>
-
       {kpis.map((k) => (
         <Col key={k.title} xs={24} sm={12} xl={6}>
           <Card variant="borderless">
@@ -90,7 +75,11 @@ export function DashboardPage() {
               .filter((s) => s.count > 0)
               .map((s) => (
                 <div key={s.status}>
-                  <a className="ac-top__name" onClick={() => nav(`/cases?status=${s.status}`)}>
+                  <a
+                    className="ac-top__name"
+                    style={{ color: CASE_STATUS_META[s.status]?.color }}
+                    onClick={() => nav(`/cases?status=${s.status}`)}
+                  >
                     {CASE_STATUS_META[s.status]?.label ?? s.status}
                   </a>
                   <Progress
@@ -113,12 +102,12 @@ export function DashboardPage() {
           extra={
             <Space size={12}>
               {data?.pendingAnalysis != null && data.pendingAnalysis > 0 && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                <Typography.Text style={{ fontSize: 12, color: CASE_STATUS_META.PENDING_ANALYSIS.color }}>
                   待分析 {data.pendingAnalysis}
                 </Typography.Text>
               )}
               {data?.deployFailed != null && data.deployFailed > 0 && (
-                <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                <Typography.Text style={{ fontSize: 12, color: CASE_STATUS_META.DEPLOY_FAILED.color }}>
                   部署失败 {data.deployFailed}
                 </Typography.Text>
               )}

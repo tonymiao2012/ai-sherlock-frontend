@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  App,
   Card,
   Descriptions,
   Space,
@@ -9,7 +10,6 @@ import {
   Tabs,
   Tag,
   Typography,
-  message,
 } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
 import { loadCase, loadReport } from '../core/db';
@@ -24,6 +24,7 @@ const GREEN_TAG_STYLE: React.CSSProperties = {
 };
 
 export default function ReportApp() {
+  const { message } = App.useApp();
   const [report, setReport] = useState<IssuePackage | null>(null);
   const [loading, setLoading] = useState(true);
 

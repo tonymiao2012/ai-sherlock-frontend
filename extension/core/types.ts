@@ -91,12 +91,20 @@ export interface ScreenshotItem {
 /** 侧边栏内嵌的截图（带本地 id，用于草稿与重新批注） */
 export type AnnotatedShot = ScreenshotItem & { id: string };
 
+/** 录音轨（webm/opus base64）；startedAt 与 rrweb 事件同为 Date.now() 绝对毫秒，可直接对齐时间轴 */
+export interface AudioTrack {
+  startedAt: number;
+  duration: number;
+  mimeType: string;
+  dataUrl: string;
+}
+
 /** 侧边栏草稿：面板重开后恢复未提交的内容 */
 export interface SidebarDraft {
   title: string;
   description: string;
   shots: AnnotatedShot[];
-  record?: { seconds: number; eventCount: number };
+  record?: { seconds: number; eventCount: number; audio?: AudioTrack };
 }
 
 /** 用户表单输入 */
@@ -142,6 +150,8 @@ export interface IssuePackage {
   /** rrweb 录制事件，可回放 */
   rrwebEvents?: unknown[];
   recordingSeconds?: number;
+  /** 麦克风录音，startedAt 与 rrweb 事件时间戳同轴可对齐 */
+  audio?: AudioTrack;
   /** 后端 Root Cause 诊断结果 */
   diagnosis?: Diagnosis;
   /** 应用与环境，帮助后端做 Endpoint → Application 映射 */

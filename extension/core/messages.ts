@@ -3,6 +3,7 @@ import type { EvidenceEvent, UserFormInput } from './types';
 
 export const PAGE_SOURCE = 'ai-sherlock-page';
 export const CONTENT_SOURCE = 'ai-sherlock-content';
+export const PREVIEW_SOURCE = 'ai-sherlock-preview';
 
 /** MAIN world -> content script 的 window.postMessage */
 export type PageToContentMsg =
@@ -23,15 +24,30 @@ export type ContentToPageMsg = {
   reqId: string;
 };
 
+/** preview iframe -> content script 的 window.parent.postMessage */
+export type PreviewToContentMsg =
+  | { source: typeof PREVIEW_SOURCE; type: 'preview-ready' }
+  | { source: typeof PREVIEW_SOURCE; type: 'preview-close' };
+
+/** content script -> preview iframe 的 window.postMessage */
+export type ContentToPreviewMsg = {
+  source: typeof CONTENT_SOURCE;
+  type: 'preview-events';
+  events: unknown[];
+};
+
 /** chrome.runtime 消息（扩展上下文之间） */
 export type RuntimeMessage =
   | { type: 'capture-screenshot' }
   /** dataUrl：预取的全页底图，供取色/放大镜、裁剪与页内批注 */
   | { type: 'start-region-select'; dataUrl?: string }
+  /** 面板聚焦时页面收不到 Esc，经此转发让覆盖层取消 */
+  | { type: 'cancel-capture' }
   /** 让页面重新批注一张已有截图（侧边栏 -> content） */
   | { type: 'reannotate-image'; dataUrl: string }
-  | { type: 'submit-issue'; form: UserFormInput; screenshots: import('./types').ScreenshotItem[] }
+  | { type: 'submit-issue'; form: UserFormInput; screenshots: import('./types').ScreenshotItem[]; audio?: import('./types').AudioTrack }
   | { type: 'dump-evidence' }
+  | { type: 'preview-recording' }
   | { type: 'start-recording' }
   | { type: 'stop-recording' }
   | { type: 'evidence-event'; event: EvidenceEvent }

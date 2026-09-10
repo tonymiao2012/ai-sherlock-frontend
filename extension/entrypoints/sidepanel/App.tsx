@@ -2,7 +2,7 @@
 // 流程：截图 -> 页面内微信式批注（不弹新窗口）-> 成图内嵌；Record -> 确认内嵌；提交打印 payload
 // 未提交内容（标题/描述/截图/录制）自动存 IndexedDB，面板重开后可恢复
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Modal, Space, Spin, Tag, message } from 'antd';
+import { App as AntApp, Button, Modal, Space, Spin, Tag } from 'antd';
 import {
   CameraOutlined,
   CheckCircleFilled,
@@ -16,15 +16,36 @@ import {
 } from '@ant-design/icons';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
 import { sendRuntime, uid, type CaptureResult } from '../../core/messages';
+import { startMicRecording, type MicRecording } from '../../core/audio';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
-import { isPendingVerifyStatus, type AnnotatedShot, type IssuePackage, type SidebarDraft } from '../../core/types';
+import {
+  isPendingVerifyStatus,
+  type AnnotatedShot,
+  type AudioTrack,
+  type IssuePackage,
+  type SidebarDraft,
+} from '../../core/types';
 
 interface RecordInfo {
   seconds: number;
   eventCount: number;
+  audio?: AudioTrack;
 }
 
-type Stage = { kind: 'compose' } | { kind: 'record-confirm'; info: RecordInfo };
+type Stage =
+  | { kind: 'compose' }
+  | { kind: 'record-start' }
+  | { kind: 'record-confirm'; info: RecordInfo };
+
+const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
+const CAPTURE_HINT = IS_MAC ? '⌥C' : 'Alt+C';
+const RECORD_HINT = IS_MAC ? '⌥V' : 'Alt+V';
+const SHORTCUT_HINT_STYLE: React.CSSProperties = {
+  marginLeft: 6,
+  fontSize: 11,
+  fontWeight: 400,
+  color: 'var(--sh-muted)',
+};
 
 function isResolvedStatus(status?: string): boolean {
   const s = status?.toUpperCase() ?? '';
@@ -52,6 +73,7 @@ function statusTagProps(status?: string): { color?: string; style?: React.CSSPro
 }
 
 function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loading: boolean; emptyText: string }) {
+  const { message } = AntApp.useApp();
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>;
   }
@@ -125,6 +147,7 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
 }
 
 export default function App() {
+  const { message } = AntApp.useApp();
   const [stage, setStage] = useState<Stage>({ kind: 'compose' });
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
@@ -142,8 +165,41 @@ export default function App() {
   const [pendingVerifyCount, setPendingVerifyCount] = useState(0);
   const [successInfo, setSuccessInfo] = useState<{ caseKey?: string } | null>(null);
   const recordTimerRef = useRef<number | null>(null);
+  const micRef = useRef<MicRecording | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // 快捷键：⌥/Alt+C 截图、⌥/Alt+V 录制、Esc 退出全屏确认页（面板聚焦时生效；用 e.code 兼容 macOS Alt 特殊字符）
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (e) => {
+    if (e.key === 'Escape') {
+      if (capturing) {
+        // 焦点在面板时页面收不到 Esc，转发给 content script 取消截图/批注覆盖层
+        sendToTab('cancel-capture').catch(() => {});
+        return;
+      }
+      if (stage.kind === 'record-start' || stage.kind === 'record-confirm') {
+        setStage({ kind: 'compose' });
+      }
+      return;
+    }
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.code === 'KeyC' && stage.kind === 'compose' && !capturing) {
+      e.preventDefault();
+      capture();
+    } else if (e.code === 'KeyV' && stage.kind === 'compose') {
+      e.preventDefault();
+      if (recording) stopRecording();
+      else setStage({ kind: 'record-start' });
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyHandlerRef.current(e);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 录制计时
   useEffect(() => {
@@ -259,7 +315,9 @@ export default function App() {
       | 'start-recording'
       | 'stop-recording'
       | 'start-region-select'
-      | 'reannotate-image',
+      | 'reannotate-image'
+      | 'cancel-capture'
+      | 'preview-recording',
     extra?: Record<string, unknown>
   ) => {
     const [tab] = await chrome.tabs.query({
@@ -345,31 +403,99 @@ export default function App() {
     }
   };
 
-  // 录制开始/停止 -> 停止后进入确认视图
-  const toggleRecording = async () => {
-    if (!recording) {
-      const resp = await sendToTab('start-recording');
-      if ((resp as any)?.ok) {
-        setRecording(true);
-        setRecordSeconds(0);
-        message.success('Recording — go reproduce the issue');
-      } else {
-        message.error(`Failed to start recording: ${(resp as any)?.error ?? ''}`);
+  // 开始录制：先解决麦克风授权（允许=带声音；不允许/关掉授权页=纯录屏），再启动 rrweb
+  const startRecordingFlow = async () => {
+    let mic: MicRecording | null = null;
+    try {
+      mic = await startMicRecording();
+    } catch (e) {
+      if ((e as DOMException)?.name === 'NotAllowedError') {
+        const granted = await requestMicPermissionViaTab();
+        if (granted) {
+          try {
+            mic = await startMicRecording();
+          } catch {
+            mic = null;
+          }
+        }
       }
+    }
+
+    const resp = await sendToTab('start-recording');
+    if ((resp as any)?.ok) {
+      micRef.current = mic;
+      setRecording(true);
+      setRecordSeconds(0);
+      setStage({ kind: 'compose' });
+      message.success(
+        mic
+          ? 'Recording with audio — go reproduce the issue'
+          : 'Recording without audio — go reproduce the issue'
+      );
     } else {
-      const resp = (await sendToTab('stop-recording')) as any;
-      setRecording(false);
-      if (resp?.ok && resp.dump) {
-        setStage({
-          kind: 'record-confirm',
-          info: {
-            seconds: resp.dump.recordingSeconds ?? recordSeconds,
-            eventCount: resp.dump.rrwebEvents?.length ?? 0,
-          },
-        });
-      } else {
-        message.warning(`Recording stopped: ${resp?.error ?? ''}`);
-      }
+      await mic?.stop().catch(() => null);
+      message.error(`Failed to start recording: ${(resp as any)?.error ?? ''}`);
+    }
+  };
+
+  // 授权框挂不上 sidepanel：开普通标签页完成授权，允许/拒绝/关页三种结果都会返回
+  const requestMicPermissionViaTab = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      let tabId: number | null = null;
+      const onMessage = (msg: unknown) => {
+        const m = msg as { type?: string; ok?: boolean };
+        if (m?.type === 'mic-grant-result') {
+          cleanup();
+          resolve(!!m.ok);
+        }
+      };
+      const onRemoved = (tid: number) => {
+        if (tabId != null && tid === tabId) {
+          cleanup();
+          resolve(false);
+        }
+      };
+      const cleanup = () => {
+        chrome.runtime.onMessage.removeListener(onMessage);
+        chrome.tabs.onRemoved.removeListener(onRemoved);
+      };
+      chrome.runtime.onMessage.addListener(onMessage);
+      chrome.tabs.onRemoved.addListener(onRemoved);
+      chrome.tabs.create({ url: chrome.runtime.getURL('/mic-grant.html') }, (tab) => {
+        tabId = tab?.id ?? null;
+        if (tabId == null) {
+          cleanup();
+          resolve(false);
+        }
+      });
+    });
+
+  // 停止录制 -> 停止后进入确认视图
+  const stopRecording = async () => {
+    const resp = (await sendToTab('stop-recording')) as any;
+    setRecording(false);
+    const mic = micRef.current;
+    micRef.current = null;
+    const audio = mic ? await mic.stop().catch(() => null) : null;
+    if (resp?.ok && resp.dump) {
+      setStage({
+        kind: 'record-confirm',
+        info: {
+          seconds: resp.dump.recordingSeconds ?? recordSeconds,
+          eventCount: resp.dump.rrwebEvents?.length ?? 0,
+          audio: audio ?? undefined,
+        },
+      });
+    } else {
+      message.warning(`Recording stopped: ${resp?.error ?? ''}`);
+    }
+  };
+
+  // 在当前页面遮罩预览录制回放
+  const previewRecording = async () => {
+    const resp = (await sendToTab('preview-recording')) as any;
+    if (resp?.ok === false) {
+      message.warning(resp.error || 'Preview failed');
     }
   };
 
@@ -388,6 +514,7 @@ export default function App() {
           annotated: s.annotated,
           note: s.note,
         })),
+        audio: recordInfo?.audio,
       });
       if (resp?.ok) {
         if (draftTimerRef.current) {
@@ -500,14 +627,24 @@ export default function App() {
                     onClick={capture}
                   >
                     Capture
+                    <span style={SHORTCUT_HINT_STYLE}>{CAPTURE_HINT}</span>
                   </Button>
                   <Button
                     icon={<VideoCameraOutlined />}
                     danger={recording}
                     type={recording ? 'primary' : 'default'}
-                    onClick={toggleRecording}
+                    onClick={() =>
+                      recording ? stopRecording() : setStage({ kind: 'record-start' })
+                    }
                   >
-                    {recording ? `Stop ${recordSeconds}s` : 'Record'}
+                    {recording ? (
+                      `Stop ${recordSeconds}s`
+                    ) : (
+                      <>
+                        Video
+                        <span style={SHORTCUT_HINT_STYLE}>{RECORD_HINT}</span>
+                      </>
+                    )}
                   </Button>
                 </Space>
                 {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC</span>}
@@ -615,9 +752,13 @@ export default function App() {
                       justifyContent: 'space-between',
                       fontSize: 13,
                     }}>
-                      <span>
+                      <span
+                        onClick={previewRecording}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <VideoCameraOutlined style={{ marginRight: 8 }} />
                         Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
+                        {recordInfo.audio && ' · Audio'}
                       </span>
                       <Button
                         size="small"
@@ -633,6 +774,38 @@ export default function App() {
             </>
           )}
 
+          {activeTab === 'submit' && stage.kind === 'record-start' && (
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '32px 16px',
+                background: '#fff',
+                borderRadius: 12,
+              }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}></div>
+                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Start recording?</div>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 24, lineHeight: 1.8 }}>
+                  Your page actions and microphone audio will be recorded.
+                  <br />
+                  First time? A tab will open to ask for mic permission.
+                </div>
+                <Space size={12}>
+                  <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<CheckOutlined />}
+                    style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
+                    onClick={startRecordingFlow}
+                  >
+                    Start
+                  </Button>
+                </Space>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'submit' && stage.kind === 'record-confirm' && (
             <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
               <div style={{
@@ -645,6 +818,7 @@ export default function App() {
                 <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert it?</div>
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
                   {stage.info.seconds}s · {stage.info.eventCount} events
+                  {stage.info.audio && ' · Audio'}
                 </div>
                 <Space size={12}>
                   <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>

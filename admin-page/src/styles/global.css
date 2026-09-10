@@ -23,17 +23,12 @@ body,
   overflow: hidden;
 }
 
-.ac-sider {
-  border-right: 1px solid var(--sh-line);
-}
-
 .ac-brand {
   display: flex;
   align-items: center;
   gap: 10px;
   height: 56px;
   padding-inline: 18px;
-  border-bottom: 1px solid var(--sh-line);
 }
 
 .ac-brand img {
@@ -42,7 +37,7 @@ body,
 }
 
 .ac-brand span {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--sh-ink);
 }

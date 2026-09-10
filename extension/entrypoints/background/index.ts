@@ -6,6 +6,7 @@ import { loadCases, loadReport, saveCase, saveReport } from '../../core/db';
 import { sendToActiveTab, uid, type RuntimeMessage } from '../../core/messages';
 import { isPendingVerifyStatus } from '../../core/types';
 import type {
+  AudioTrack,
   EvidenceDump,
   IssuePackage,
   ScreenshotItem,
@@ -44,7 +45,7 @@ async function handleMessage(msg: RuntimeMessage): Promise<unknown> {
     case 'capture-screenshot':
       return captureScreenshot();
     case 'submit-issue':
-      return submitIssue(msg.form, msg.screenshots);
+      return submitIssue(msg.form, msg.screenshots, msg.audio);
     case 'get-report':
       return { ok: true, report: await loadReport() };
     case 'fetch-cases':
@@ -80,7 +81,8 @@ async function captureScreenshot(): Promise<
 
 async function submitIssue(
   form: UserFormInput,
-  screenshots: ScreenshotItem[]
+  screenshots: ScreenshotItem[],
+  audio?: AudioTrack
 ): Promise<{ ok: boolean; error?: string; caseId?: string; caseKey?: string }> {
   let dump: EvidenceDump | undefined;
   let evidenceError: string | undefined;
@@ -106,7 +108,7 @@ async function submitIssue(
     evidenceError += ` (active tab: ${tab?.url ?? 'none'})`;
   }
 
-  const pkg = buildPackage(form, screenshots, dump, evidenceError);
+  const pkg = buildPackage(form, screenshots, dump, evidenceError, audio);
   // MVP：直接打印完整 payload，可在 chrome://extensions -> service worker 控制台查看
   console.log('[AI Sherlock] issue payload:', pkg);
   console.log(
@@ -311,7 +313,8 @@ function buildPackage(
   form: UserFormInput,
   screenshots: ScreenshotItem[],
   dump?: EvidenceDump,
-  evidenceError?: string
+  evidenceError?: string,
+  audio?: AudioTrack
 ): IssuePackage {  const now = new Date().toISOString();
   return {
     issueId: uid('iss-'),
@@ -340,6 +343,7 @@ function buildPackage(
     ...(evidenceError ? { evidenceError } : {}),
     rrwebEvents: dump?.rrwebEvents?.length ? dump.rrwebEvents : undefined,
     recordingSeconds: dump?.recordingSeconds,
+    audio,
     scope: { sourceApplication: 'ai-sherlock-web', environment: 'poc' },
     meta: { pluginVersion: '0.1.0-mvp', assembledAt: now },
   };

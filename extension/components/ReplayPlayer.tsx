@@ -6,9 +6,12 @@ import type { eventWithTime } from '@rrweb/types';
 
 interface Props {
   events: eventWithTime[];
+  width?: number;
+  height?: number;
+  autoPlay?: boolean;
 }
 
-export default function ReplayPlayer({ events }: Props) {
+export default function ReplayPlayer({ events, width = 720, height = 450, autoPlay = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
 
@@ -19,9 +22,9 @@ export default function ReplayPlayer({ events }: Props) {
       target: containerRef.current,
       props: {
         events,
-        width: 720,
-        height: 450,
-        autoPlay: false,
+        width,
+        height,
+        autoPlay,
         showController: true,
       },
     });
