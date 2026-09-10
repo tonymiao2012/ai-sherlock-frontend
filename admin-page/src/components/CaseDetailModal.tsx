@@ -1,5 +1,6 @@
 import {
   Button,
+  Card,
   Collapse,
   Descriptions,
   Divider,
@@ -8,13 +9,16 @@ import {
   Modal,
   Progress,
   Select,
+  Space,
   Steps,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
 import type {
   CaseStatus,
   CaseV2,
+  Evidence,
   FindingResolutionType,
 } from '../types';
 import { CASE_STATUS_META } from '../domain/caseLifecycle';
@@ -174,12 +178,23 @@ export function CaseDetailModal({ caseItem, open, onClose, onStatusChange, onCas
         </div>
       }
     >
-      <Steps
-        size="small"
-        current={currentStep}
-        style={{ marginBottom: 20 }}
-        items={STATUS_STEPS.map((st) => ({ title: CASE_STATUS_META[st]?.label ?? st }))}
-      />
+      <div
+        style={{
+          position: 'sticky',
+          top: -16,
+          zIndex: 10,
+          background: '#fff',
+          margin: '-16px -24px 20px',
+          padding: '16px 24px 12px',
+          borderBottom: `1px solid ${palette.line}`,
+        }}
+      >
+        <Steps
+          size="small"
+          current={currentStep}
+          items={STATUS_STEPS.map((st) => ({ title: CASE_STATUS_META[st]?.label ?? st }))}
+        />
+      </div>
 
       <Collapse
         key={s}
@@ -202,77 +217,128 @@ function ReportSection({
   userName: (id: string) => string;
 }) {
   return (
-    <div>
-      <Descriptions size="small" column={2} items={[
-        { key: 'p', label: '项目', children: project?.name ?? '—' },
-        { key: 'e', label: '环境', children: caseItem.environment },
-        { key: 'sv', label: '严重程度', children: SEVERITY_META[caseItem.severity]?.label ?? caseItem.severity },
-        { key: 'a', label: '负责人', children: caseItem.assigneeId ? userName(caseItem.assigneeId) : '未分配' },
-        { key: 'r', label: '上报人', children: caseItem.reporter },
-        { key: 'bv', label: 'Build Version', children: caseItem.buildVersion },
-        { key: 't', label: '上报时间', children: fmtShort(caseItem.reportedAt) },
-        { key: 'c', label: 'Cycle', children: `#${caseItem.currentCycle?.cycleNo ?? 1}` },
-      ]} />
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <Tabs
+        style={{ flex: 1, minWidth: 0 }}
+        defaultActiveKey="overview"
+        items={[
+          { key: 'overview', label: 'Overview', children: <OverviewTab caseItem={caseItem} /> },
+          {
+            key: 'shots',
+            label: `Screenshots(${caseItem.screenshotCount})`,
+            children: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无截图数据" />,
+          },
+          {
+            key: 'network',
+            label: `Network(${caseItem.network.length})`,
+            children: <EvidenceList entries={caseItem.network} empty="No network logs" />,
+          },
+          {
+            key: 'console',
+            label: `Console(${caseItem.consoleLogs.length})`,
+            children: <EvidenceList entries={caseItem.consoleLogs} empty="No console logs" />,
+          },
+          {
+            key: 'stacks',
+            label: `Error stacks(${caseItem.stacks.length})`,
+            children: <StackList entries={caseItem.stacks} />,
+          },
+          {
+            key: 'replay',
+            label: `Replay(${caseItem.replayEventCount})`,
+            children: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无回放数据" />,
+          },
+        ]}
+      />
 
-      <Divider style={{ margin: '12px 0' }} />
-
-      <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-        页面 URL
-      </Typography.Text>
-      <Typography.Link href={caseItem.pageUrl} target="_blank" style={{ display: 'block', marginBottom: 12 }}>
-        {caseItem.pageUrl}
-      </Typography.Link>
-
-      <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-        问题描述
-      </Typography.Text>
-      <Typography.Paragraph>{caseItem.description}</Typography.Paragraph>
-
-      <EvidenceSection caseItem={caseItem} />
+      <div
+        style={{
+          width: 240,
+          flexShrink: 0,
+          fontSize: 13,
+          lineHeight: 2.1,
+          borderLeft: `1px solid ${palette.line}`,
+          paddingLeft: 20,
+        }}
+      >
+        {([
+          ['项目', project?.name ?? '—'],
+          ['环境', caseItem.environment],
+          ['严重程度', SEVERITY_META[caseItem.severity]?.label ?? caseItem.severity],
+          ['负责人', caseItem.assigneeId ? userName(caseItem.assigneeId) : '未分配'],
+          ['上报人', caseItem.reporter],
+          ['上报时间', fmtShort(caseItem.reportedAt)],
+        ] as [string, string][]).map(([k, v]) => (
+          <div key={k} style={{ wordBreak: 'break-all' }}>
+            <span style={{ color: palette.muted }}>{k}：</span>
+            {v}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function EvidenceSection({ caseItem }: { caseItem: CaseV2 }) {
-  const hasEvidence = caseItem.network.length > 0 || caseItem.consoleLogs.length > 0 || caseItem.stacks.length > 0;
-  if (!hasEvidence) return null;
-
+function OverviewTab({ caseItem }: { caseItem: CaseV2 }) {
   return (
-    <Collapse
-      size="small"
-      style={{ marginTop: 8 }}
-      items={[
-        ...(caseItem.network.length > 0 ? [{
-          key: 'network',
-          label: `Network Logs (${caseItem.network.length})`,
-          children: caseItem.network.map((e) => (
-            <div key={e.id} style={{ fontSize: 12, marginBottom: 6, fontFamily: 'monospace' }}>
-              <Tag style={{ fontSize: 10 }}>{e.kind}</Tag> {e.label}
-              {e.detail && <div style={{ color: '#888', marginTop: 2 }}>{e.detail}</div>}
-            </div>
-          )),
-        }] : []),
-        ...(caseItem.consoleLogs.length > 0 ? [{
-          key: 'console',
-          label: `Console Logs (${caseItem.consoleLogs.length})`,
-          children: caseItem.consoleLogs.map((e) => (
-            <div key={e.id} style={{ fontSize: 12, marginBottom: 6, fontFamily: 'monospace' }}>
-              <Tag style={{ fontSize: 10 }}>{e.kind}</Tag> {e.label}
-              {e.detail && <div style={{ color: '#888', marginTop: 2 }}>{e.detail}</div>}
-            </div>
-          )),
-        }] : []),
-        ...(caseItem.stacks.length > 0 ? [{
-          key: 'stack',
-          label: `Stack Traces (${caseItem.stacks.length})`,
-          children: caseItem.stacks.map((e) => (
-            <pre key={e.id} style={{ fontSize: 11, margin: '4px 0', background: '#f5f5f5', padding: 8, borderRadius: 4, overflow: 'auto' }}>
-              {e.detail || e.label}
-            </pre>
-          )),
-        }] : []),
-      ]}
-    />
+    <Space direction="vertical" style={{ width: '100%' }} size={12}>
+      <Card size="small" title="Issue">
+        <Descriptions column={1} size="small" items={[
+          { key: 'title', label: 'Title', children: caseItem.title },
+          { key: 'desc', label: 'Description', children: caseItem.description },
+          { key: 'status', label: 'Status', children: <CaseStatusTag status={caseItem.status} /> },
+        ]} />
+      </Card>
+
+      <Card size="small" title="Page context">
+        <Descriptions column={1} size="small" items={[
+          { key: 'url', label: 'URL', children: <span style={{ wordBreak: 'break-all' }}>{caseItem.pageUrl}</span> },
+          { key: 'route', label: 'Route', children: caseItem.pageContext.route },
+          { key: 'ptitle', label: 'Title', children: caseItem.pageContext.title },
+          { key: 'viewport', label: 'Viewport', children: caseItem.pageContext.viewport },
+          { key: 'lang', label: 'Language', children: caseItem.pageContext.language },
+          { key: 'submitted', label: 'Submitted at', children: caseItem.pageContext.submittedAt },
+          { key: 'ua', label: 'UA', children: <span style={{ wordBreak: 'break-all' }}>{caseItem.pageContext.userAgent}</span> },
+        ]} />
+      </Card>
+
+      <Card size="small" title="Evidence">
+        <Space wrap>
+          <Tag color="blue">Screenshots {caseItem.screenshotCount}</Tag>
+          <Tag color="blue">Network {caseItem.network.length}</Tag>
+          <Tag color="orange">Console {caseItem.consoleLogs.length}</Tag>
+          <Tag color="red">Stacks {caseItem.stacks.length}</Tag>
+          <Tag color="purple">Replay events {caseItem.replayEventCount}</Tag>
+        </Space>
+      </Card>
+    </Space>
+  );
+}
+
+function EvidenceList({ entries, empty }: { entries: Evidence[]; empty: string }) {
+  if (entries.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={empty} />;
+  return (
+    <div>
+      {entries.map((e) => (
+        <div key={e.id} style={{ fontSize: 12, marginBottom: 6, fontFamily: 'monospace' }}>
+          <Tag style={{ fontSize: 10 }}>{e.kind}</Tag> {e.label}
+          {e.detail && <div style={{ color: '#888', marginTop: 2 }}>{e.detail}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StackList({ entries }: { entries: Evidence[] }) {
+  if (entries.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No uncaught errors" />;
+  return (
+    <div>
+      {entries.map((e) => (
+        <pre key={e.id} style={{ fontSize: 11, margin: '4px 0', background: '#f5f5f5', padding: 8, borderRadius: 4, overflow: 'auto' }}>
+          {e.detail || e.label}
+        </pre>
+      ))}
+    </div>
   );
 }
 

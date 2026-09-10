@@ -302,6 +302,16 @@ export type CaseStatus =
   | 'PENDING_VERIFICATION' // 待验证
   | 'COMPLETED';           // 验证通过/已完成
 
+/** 上报时的页面上下文（与插件 IssuePackage.pageContext 对齐） */
+export interface CasePageContext {
+  route: string;
+  title: string;
+  viewport: string;
+  language: string;
+  submittedAt: string;
+  userAgent: string;
+}
+
 /** Case 聚合模型（docs/case-lifecycle-architecture-design.md §4） */
 export interface CaseV2 {
   id: string;
@@ -321,6 +331,9 @@ export interface CaseV2 {
   reportedAt: string;
   updatedAt: string;
   version: number;
+  pageContext: CasePageContext;
+  screenshotCount: number;
+  replayEventCount: number;
   currentCycle: CaseCycle;
   cycles: CaseCycle[];
   currentRevision: CaseRevision;

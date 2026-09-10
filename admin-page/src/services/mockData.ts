@@ -666,6 +666,33 @@ export const CASES_V2: CaseV2[] = [
   },
 ];
 
+/* -------- Mock：页面上下文与证据计数（对齐插件 IssuePackage.Overview） -------- */
+
+const MOCK_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
+
+const SITE_NAMES: Record<string, string> = {
+  'account.company.com': '账户中心',
+  'payment.company.com': '支付网关',
+  'cs.company.com': '客户服务',
+};
+
+CASES_V2.forEach((c, i) => {
+  const url = new URL(c.pageUrl);
+  const route = url.pathname || '/';
+  const site = SITE_NAMES[url.host] ?? url.host;
+  c.pageContext = {
+    route,
+    title: `${site} — ${route === '/' ? '首页' : route.slice(1).replace(/\//g, ' / ')}`,
+    viewport: '1512×854',
+    language: 'zh-CN',
+    submittedAt: c.reportedAt,
+    userAgent: MOCK_UA,
+  };
+  c.screenshotCount = [1, 2, 1, 0, 3, 1, 2, 1, 0, 2][i] ?? 1;
+  c.replayEventCount = [86, 0, 240, 0, 512, 130, 0, 64, 0, 118][i] ?? 0;
+});
+
 const jiraSite = 'https://jira.company.com';
 
 export const PROJECTS: Project[] = [
