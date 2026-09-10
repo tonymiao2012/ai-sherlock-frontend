@@ -16,6 +16,8 @@ export const palette = {
   /** 淡绿：选中/悬停的柔和底色 */
   accentSoft: '#F3FAE9',
   accentLine: '#D7EFBB',
+  /** 淡绿底上的文字（深绿字） */
+  accentDark: '#68B81F',
 
   ink: '#141414',
   text: '#141414',
@@ -88,7 +90,7 @@ export const sherlockTheme: ThemeConfig = {
     },
     Menu: {
       itemSelectedBg: palette.accentSoft,
-      itemSelectedColor: palette.accent,
+      itemSelectedColor: palette.accentDark,
       itemActiveBg: palette.accentSoft,
       itemHoverBg: palette.sunken,
       iconSize: 16,

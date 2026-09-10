@@ -40,6 +40,17 @@ function statusColor(status?: string): string {
   return 'blue';
 }
 
+const GREEN_TAG_STYLE: React.CSSProperties = {
+  background: 'var(--sh-accent-soft)',
+  color: 'var(--sh-accent-dark)',
+  borderColor: 'var(--sh-accent-line)',
+};
+
+function statusTagProps(status?: string): { color?: string; style?: React.CSSProperties } {
+  const color = statusColor(status);
+  return color === 'green' ? { style: GREEN_TAG_STYLE } : { color };
+}
+
 function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loading: boolean; emptyText: string }) {
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Loading...</div>;
@@ -104,7 +115,7 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
                 )}
               </span>
               <span>{new Date(c.meta.assembledAt).toLocaleString()}</span>
-              <Tag color={statusColor(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
+              <Tag {...statusTagProps(c.status)}>{c.status ?? 'RECEIVED'}</Tag>
             </div>
           </div>
         );

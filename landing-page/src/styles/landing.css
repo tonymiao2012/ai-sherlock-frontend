@@ -63,13 +63,13 @@
 
 .lp-nav__tab--active {
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   font-weight: 600;
 }
 
 .lp-nav__tab--active:hover {
   background: var(--sh-accent-line);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
 }
 
 .lp-brand {
@@ -144,7 +144,7 @@
 
 .lp-nav__dropdown-item--active {
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   font-weight: 600;
 }
 
@@ -201,7 +201,7 @@
 
 .lp-nav__item--active {
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   font-weight: 600;
 }
 
@@ -296,6 +296,7 @@
 
 .lp-hero__notice-link:hover {
   background: var(--sh-accent-soft);
+  color: var(--sh-accent-dark);
 }
 
 .lp-hero__title {
@@ -602,7 +603,7 @@
 .lp-final__pill:nth-child(2) {
   transform: rotate(6deg) translateY(10px);
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   border: 1px solid var(--sh-accent-line);
 }
 
@@ -948,7 +949,7 @@
 }
 
 .apidocs__sidebar a.active {
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   background: var(--sh-accent-soft);
   font-weight: 500;
 }

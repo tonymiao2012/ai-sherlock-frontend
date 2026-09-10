@@ -17,6 +17,12 @@ import { BRAND_LOGO_URL } from './BrandLogo';
 import type { IssuePackage } from '../core/types';
 import ReplayPlayer from './ReplayPlayer';
 
+const GREEN_TAG_STYLE: React.CSSProperties = {
+  background: 'var(--sh-accent-soft)',
+  color: 'var(--sh-accent-dark)',
+  borderColor: 'var(--sh-accent-line)',
+};
+
 export default function ReportApp() {
   const [report, setReport] = useState<IssuePackage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +80,7 @@ export default function ReportApp() {
         ) : s == null ? (
           '-'
         ) : (
-          <Tag color={s >= 400 ? 'red' : s >= 300 ? 'orange' : 'green'}>
+          <Tag style={s >= 300 && s < 400 ? GREEN_TAG_STYLE : undefined} color={s >= 400 ? 'red' : s >= 300 ? undefined : 'green'}>
             {s}
           </Tag>
         ),
@@ -115,20 +121,22 @@ export default function ReportApp() {
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock Report</span>
         </div>
-        <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {report.caseKey ?? report.issueId}
-          <CopyOutlined
-            style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
-            onClick={() => {
-              navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
-                message.success('Copied');
-              });
-            }}
-          />
-        </span>
       </header>
 
       <Tabs
+        tabBarExtraContent={
+          <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {report.caseKey ?? report.issueId}
+            <CopyOutlined
+              style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
+              onClick={() => {
+                navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
+                  message.success('Copied');
+                });
+              }}
+            />
+          </span>
+        }
         items={[
           {
             key: 'overview',
@@ -163,7 +171,10 @@ export default function ReportApp() {
                     )}
                     <Descriptions.Item label="Status">
                       {report.status ? (
-                        <Tag color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? 'green' : 'default'}>
+                        <Tag
+                          color={report.status === 'RECEIVED' ? 'blue' : report.status === 'DIAGNOSED' ? undefined : 'default'}
+                          style={report.status === 'DIAGNOSED' ? GREEN_TAG_STYLE : undefined}
+                        >
                           {report.status}
                         </Tag>
                       ) : (

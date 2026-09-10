@@ -122,7 +122,7 @@
 .mk-tag--brand {
   background: var(--sh-accent-soft);
   border: 1px solid var(--sh-accent-line);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
 }
 
 .mk-tag--danger {
@@ -354,7 +354,7 @@
   place-items: center;
   background: var(--sh-accent-soft);
   border: 1px solid var(--sh-accent-line);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   font-size: 10px;
   font-weight: 700;
   z-index: 1;
@@ -400,7 +400,7 @@
 
 .mk-diff__row--add {
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
 }
 
 .mk-diff__row--del {
@@ -436,7 +436,7 @@
   display: grid;
   place-items: center;
   background: var(--sh-accent-soft);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   border: 1px solid var(--sh-accent-line);
 }
 

@@ -231,7 +231,7 @@ blockquote {
 .lp-pill--brand {
   background: var(--sh-accent-soft);
   border-color: var(--sh-accent-line);
-  color: var(--sh-accent);
+  color: var(--sh-accent-dark);
   font-weight: 600;
 }
 
