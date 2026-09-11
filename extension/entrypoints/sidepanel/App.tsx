@@ -15,7 +15,7 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
-import { sendRuntime, uid, type CaptureResult } from '../../core/messages';
+import { sendRuntime, uid, type CaptureResult, type RuntimeMessage } from '../../core/messages';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
 import {
   isPendingVerifyStatus,
@@ -35,7 +35,6 @@ interface RecordInfo {
 
 type Stage =
   | { kind: 'compose' }
-  | { kind: 'record-start' }
   | { kind: 'record-confirm'; info: RecordInfo };
 
 const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
@@ -155,7 +154,6 @@ export default function App() {
   const [shots, setShots] = useState<AnnotatedShot[]>([]);
   const [capturing, setCapturing] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [startingRec, setStartingRec] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordInfo, setRecordInfo] = useState<RecordInfo | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -179,7 +177,7 @@ export default function App() {
         sendToTab('cancel-capture').catch(() => {});
         return;
       }
-      if (stage.kind === 'record-start' || stage.kind === 'record-confirm') {
+      if (stage.kind === 'record-confirm') {
         setStage({ kind: 'compose' });
       }
       return;
@@ -188,10 +186,9 @@ export default function App() {
     if (e.code === 'KeyC' && stage.kind === 'compose' && !capturing) {
       e.preventDefault();
       capture();
-    } else if (e.code === 'KeyV' && stage.kind === 'compose') {
+    } else if (e.code === 'KeyV' && stage.kind === 'compose' && !recording) {
       e.preventDefault();
-      if (recording) stopRecording();
-      else setStage({ kind: 'record-start' });
+      sendToTab('start-recording-overlay').catch(() => {});
     }
   };
 
@@ -328,8 +325,7 @@ export default function App() {
 
   const sendToTab = async (
     type:
-      | 'start-recording'
-      | 'stop-recording'
+      | 'start-recording-overlay'
       | 'start-region-select'
       | 'reannotate-image'
       | 'cancel-capture'
@@ -419,28 +415,43 @@ export default function App() {
     }
   };
 
-  // 开始录制：content script 在当前页面上完成麦克风授权（允许=带声音），有结果才启动 rrweb
-  const startRecordingFlow = async () => {
-    if (startingRec) return;
-    setStartingRec(true);
-    try {
-      const resp = (await sendToTab('start-recording')) as any;
-      if (resp?.ok) {
+  // 开始录制：让 content script 在主页面展示确认 → 倒计时 → 浮动控制条
+  const startRecordingOverlay = () => {
+    if (recording) return;
+    sendToTab('start-recording-overlay').catch(() => {
+      message.error('Cannot start recording: the page did not respond');
+    });
+  };
+
+  // 监听 content script 的录制状态通知（录制开始/取消/停止）
+  useEffect(() => {
+    const listener = (msg: RuntimeMessage) => {
+      if (msg.type === 'recording-started') {
         setRecording(true);
         setRecordSeconds(0);
         setStage({ kind: 'compose' });
-        message.success(
-          resp.withAudio
-            ? 'Recording with audio — go reproduce the issue'
-            : 'Recording without audio — go reproduce the issue'
-        );
-      } else {
-        message.error(`Failed to start recording: ${resp?.error ?? ''}`);
+      } else if (msg.type === 'recording-canceled') {
+        setRecording(false);
+      } else if (msg.type === 'recording-stopped') {
+        setRecording(false);
+        const dump = msg.dump;
+        captureThumbnail().then((thumbnail) => {
+          setStage({
+            kind: 'record-confirm',
+            info: {
+              seconds: dump.recordingSeconds ?? 0,
+              eventCount: dump.rrwebEvents?.length ?? 0,
+              audio: dump.audio ?? undefined,
+              thumbnail,
+            },
+          });
+        });
       }
-    } finally {
-      setStartingRec(false);
-    }
-  };
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 停止录制时的页面缩略图：保持宽高比压到最大宽 640（后续会嵌入文本框，仅本地预览）
   const captureThumbnail = async (): Promise<string | undefined> => {
@@ -465,26 +476,6 @@ export default function App() {
       return c.toDataURL('image/jpeg', 0.7);
     } catch {
       return undefined;
-    }
-  };
-
-  // 停止录制 -> 停止后进入确认视图（音频由 content script 一并回传）
-  const stopRecording = async () => {
-    const resp = (await sendToTab('stop-recording')) as any;
-    setRecording(false);
-    if (resp?.ok && resp.dump) {
-      const thumbnail = await captureThumbnail();
-      setStage({
-        kind: 'record-confirm',
-        info: {
-          seconds: resp.dump.recordingSeconds ?? recordSeconds,
-          eventCount: resp.dump.rrwebEvents?.length ?? 0,
-          audio: resp.dump.audio ?? undefined,
-          thumbnail: thumbnail ?? undefined,
-        },
-      });
-    } else {
-      message.warning(`Recording stopped: ${resp?.error ?? ''}`);
     }
   };
 
@@ -632,23 +623,14 @@ export default function App() {
                   </Button>
                   <Button
                     icon={<VideoCameraOutlined />}
-                    danger={recording}
-                    type={recording ? 'primary' : 'default'}
-                    onClick={() =>
-                      recording ? stopRecording() : setStage({ kind: 'record-start' })
-                    }
+                    onClick={startRecordingOverlay}
+                    disabled={recording}
                   >
-                    {recording ? (
-                      `Stop ${recordSeconds}s`
-                    ) : (
-                      <>
-                        Video
-                        <span style={SHORTCUT_HINT_STYLE}>{RECORD_HINT}</span>
-                      </>
-                    )}
+                    Video
+                    <span style={SHORTCUT_HINT_STYLE}>{RECORD_HINT}</span>
                   </Button>
                 </Space>
-                {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC</span>}
+                {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC {recordSeconds}s</span>}
               </div>
 
               {/* 编辑区：标题 + 录制缩略图 + 文本框占满剩余空间 */}
@@ -822,39 +804,6 @@ export default function App() {
                 </div>
               )}
             </>
-          )}
-
-          {activeTab === 'submit' && stage.kind === 'record-start' && (
-            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-              <div style={{
-                textAlign: 'center',
-                padding: '32px 16px',
-                background: '#fff',
-                borderRadius: 12,
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}></div>
-                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Start recording?</div>
-                <div style={{ fontSize: 13, color: '#666', marginBottom: 24, lineHeight: 1.8 }}>
-                  Your page actions and microphone audio will be recorded.
-                  <br />
-                  First time on this site? Chrome will ask for mic permission on the page.
-                </div>
-                <Space size={12}>
-                  <Button icon={<CloseOutlined />} disabled={startingRec} onClick={() => setStage({ kind: 'compose' })}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="primary"
-                    icon={<CheckOutlined />}
-                    style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
-                    loading={startingRec}
-                    onClick={startRecordingFlow}
-                  >
-                    Start
-                  </Button>
-                </Space>
-              </div>
-            </div>
           )}
 
           {activeTab === 'submit' && stage.kind === 'record-confirm' && (

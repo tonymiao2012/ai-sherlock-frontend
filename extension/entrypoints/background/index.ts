@@ -55,6 +55,11 @@ async function handleMessage(msg: RuntimeMessage): Promise<unknown> {
     case 'evidence-event':
       // sidepanel 自行订阅，background 仅 ack，避免 "no listener" 报错
       return { ok: true };
+    case 'recording-started':
+    case 'recording-canceled':
+    case 'recording-stopped':
+      // content script → sidepanel 的直通通知，background 仅 ack
+      return { ok: true };
     default:
       return { ok: false, error: 'Unknown message type' };
   }
