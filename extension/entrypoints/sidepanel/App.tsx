@@ -6,16 +6,15 @@ import { App as AntApp, Button, Modal, Space, Spin, Tag } from 'antd';
 import {
   CameraOutlined,
   CheckCircleFilled,
-  CheckOutlined,
-  CloseOutlined,
   CopyOutlined,
   DeleteOutlined,
-  EditOutlined,
   SendOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
+import type { eventWithTime } from '@rrweb/types';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
-import { sendRuntime, uid, type CaptureResult, type RuntimeMessage } from '../../core/messages';
+import ReplayPlayer from '../../components/ReplayPlayer';
+import { sendRuntime, uid, type RuntimeMessage } from '../../core/messages';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
 import {
   isPendingVerifyStatus,
@@ -32,10 +31,6 @@ interface RecordInfo {
   /** 停止录制时的页面缩略图（本地预览用，不进提交 payload） */
   thumbnail?: string;
 }
-
-type Stage =
-  | { kind: 'compose' }
-  | { kind: 'record-confirm'; info: RecordInfo };
 
 const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
 const CAPTURE_HINT = IS_MAC ? '⌥C' : 'Alt+C';
@@ -148,7 +143,6 @@ function CaseListPanel({ list, loading, emptyText }: { list: IssuePackage[]; loa
 
 export default function App() {
   const { message } = AntApp.useApp();
-  const [stage, setStage] = useState<Stage>({ kind: 'compose' });
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [shots, setShots] = useState<AnnotatedShot[]>([]);
@@ -156,7 +150,9 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordInfo, setRecordInfo] = useState<RecordInfo | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [recordEvents, setRecordEvents] = useState<eventWithTime[] | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [activeTab, setActiveTab] = useState('submit');
@@ -168,25 +164,14 @@ export default function App() {
   const draftTimerRef = useRef<number | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
-  // 快捷键：⌥/Alt+C 截图、⌥/Alt+V 录制、Esc 退出全屏确认页（面板聚焦时生效；用 e.code 兼容 macOS Alt 特殊字符）
+  // 快捷键：⌥/Alt+C 截图、⌥/Alt+V 录制（面板聚焦时生效；用 e.code 兼容 macOS Alt 特殊字符）
   const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyHandlerRef.current = (e) => {
-    if (e.key === 'Escape') {
-      if (capturing) {
-        // 焦点在面板时页面收不到 Esc，转发给 content script 取消截图/批注覆盖层
-        sendToTab('cancel-capture').catch(() => {});
-        return;
-      }
-      if (stage.kind === 'record-confirm') {
-        setStage({ kind: 'compose' });
-      }
-      return;
-    }
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    if (e.code === 'KeyC' && stage.kind === 'compose' && !capturing) {
+    if (e.code === 'KeyC' && !capturing) {
       e.preventDefault();
       capture();
-    } else if (e.code === 'KeyV' && stage.kind === 'compose' && !recording) {
+    } else if (e.code === 'KeyV' && !recording) {
       e.preventDefault();
       sendToTab('start-recording-overlay').catch(() => {});
     }
@@ -269,6 +254,12 @@ export default function App() {
     }
   }, [recordInfo, draftReady]);
 
+  // 录制卡被替换或删除时，关闭内嵌预览并清掉旧事件
+  useEffect(() => {
+    setPreviewOpen(false);
+    setRecordEvents(null);
+  }, [recordInfo?.audio?.startedAt, recordInfo?.seconds]);
+
   // 加载 Case 列表（点击 Cases tab 从后端同步最新状态；打开面板时拉一次）
   // 已有数据时静默刷新，旧列表原地保留，避免切 Tab 闪 Loading
   const refreshCases = () => {
@@ -324,12 +315,7 @@ export default function App() {
   }, []);
 
   const sendToTab = async (
-    type:
-      | 'start-recording-overlay'
-      | 'start-region-select'
-      | 'reannotate-image'
-      | 'cancel-capture'
-      | 'preview-recording',
+    type: 'start-recording-overlay' | 'dump-evidence',
     extra?: Record<string, unknown>
   ) => {
     const [tab] = await chrome.tabs.query({
@@ -339,7 +325,6 @@ export default function App() {
     if (!tab?.id) return { ok: false, error: 'No active tab' };
     try {
       return (await chrome.tabs.sendMessage(tab.id, { type, ...extra })) as
-        | CaptureResult
         | Record<string, unknown>
         | undefined;
     } catch (e) {
@@ -347,7 +332,26 @@ export default function App() {
     }
   };
 
-  // 截图：抓底图 -> 页面框选 -> 页面内批注 -> 成图直接内嵌
+  // 将整页截图压到最大 1440 宽 + JPEG 0.8，减少 base64 payload
+  const downscaleDataUrl = async (dataUrl: string, maxWidth = 1440, quality = 0.8): Promise<string> => {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = dataUrl;
+    });
+    if (img.width <= maxWidth) return dataUrl;
+    const k = maxWidth / img.width;
+    const c = document.createElement('canvas');
+    c.width = maxWidth;
+    c.height = Math.round(img.height * k);
+    const ctx = c.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', quality);
+  };
+
+  // 截图：直接插入到编辑区，不再走页面框选/批注覆盖层
   const capture = async () => {
     setCapturing(true);
     try {
@@ -361,22 +365,10 @@ export default function App() {
         message.error(`Capture failed: ${resp?.error ?? 'unknown error'}`);
         return;
       }
-      const result = (await sendToTab('start-region-select', {
-        dataUrl: resp.dataUrl,
-      })) as CaptureResult | undefined;
-      if (!result) {
-        message.error(
-          'Capture failed: the page did not respond (not supported on chrome:// pages)'
-        );
-        return;
-      }
-      if (!result.ok) {
-        if (!result.canceled) message.error(`Capture failed: ${result.error}`);
-        return;
-      }
+      const dataUrl = await downscaleDataUrl(resp.dataUrl);
       setShots((prev) => [
         ...prev,
-        { id: uid('shot-'), dataUrl: result.dataUrl, annotated: result.annotated },
+        { id: uid('shot-'), dataUrl, annotated: false },
       ]);
       message.success('Screenshot inserted');
     } catch (e) {
@@ -384,34 +376,6 @@ export default function App() {
       message.error(`Capture error: ${(e as Error).message}`);
     } finally {
       setCapturing(false);
-    }
-  };
-
-  // 重新批注已有截图：同样在页面上原地完成
-  const reannotate = async (shot: AnnotatedShot) => {
-    setEditingId(shot.id);
-    try {
-      const result = (await sendToTab('reannotate-image', {
-        dataUrl: shot.dataUrl,
-      })) as CaptureResult | undefined;
-      if (!result) {
-        message.error('Cannot annotate: the page did not respond');
-        return;
-      }
-      if (!result.ok) {
-        if (!result.canceled) message.error(`Cannot annotate: ${result.error}`);
-        return;
-      }
-      setShots((prev) =>
-        prev.map((x) =>
-          x.id === shot.id
-            ? { ...x, dataUrl: result.dataUrl, annotated: true }
-            : x
-        )
-      );
-      message.success('Annotation saved');
-    } finally {
-      setEditingId(null);
     }
   };
 
@@ -429,22 +393,19 @@ export default function App() {
       if (msg.type === 'recording-started') {
         setRecording(true);
         setRecordSeconds(0);
-        setStage({ kind: 'compose' });
       } else if (msg.type === 'recording-canceled') {
         setRecording(false);
       } else if (msg.type === 'recording-stopped') {
         setRecording(false);
         const dump = msg.dump;
         captureThumbnail().then((thumbnail) => {
-          setStage({
-            kind: 'record-confirm',
-            info: {
-              seconds: dump.recordingSeconds ?? 0,
-              eventCount: dump.rrwebEvents?.length ?? 0,
-              audio: dump.audio ?? undefined,
-              thumbnail,
-            },
+          setRecordInfo({
+            seconds: dump.recordingSeconds ?? 0,
+            eventCount: dump.rrwebEvents?.length ?? 0,
+            audio: dump.audio ?? undefined,
+            thumbnail,
           });
+          message.success('Recording inserted');
         });
       }
     };
@@ -479,12 +440,81 @@ export default function App() {
     }
   };
 
-  // 在当前页面遮罩预览录制回放（音频一并传入，随回放同步播放）
+  // 在侧边栏内嵌展开第一帧预览：从 content script 拉取 rrweb 事件，
+  // 用 ReplayPlayer 直接渲染（autoPlay=false），不再打开全页遮罩。
   const previewRecording = async () => {
-    const resp = (await sendToTab('preview-recording', { audio: recordInfo?.audio })) as any;
-    if (resp?.ok === false) {
-      message.warning(resp.error || 'Preview failed');
+    if (previewOpen) {
+      setPreviewOpen(false);
+      return;
     }
+    if (recordEvents) {
+      setPreviewOpen(true);
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const resp = (await sendToTab('dump-evidence')) as
+        | { ok: true; dump?: { rrwebEvents?: eventWithTime[] } }
+        | { ok: false; error?: string }
+        | undefined;
+      if (!resp?.ok || !('dump' in resp)) {
+        message.warning((resp as any)?.error || 'Preview failed');
+        return;
+      }
+      const events = resp.dump?.rrwebEvents ?? [];
+      if (events.length === 0) {
+        message.warning('No recording events available');
+        return;
+      }
+      setRecordEvents(events as eventWithTime[]);
+      setPreviewOpen(true);
+    } catch (e) {
+      message.warning(`Preview error: ${(e as Error).message}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // 音频跟随 rrweb 回放：start/play-back/resume 播放，pause/finish 暂停，
+  // rAF 持续校正 currentTime（覆盖拖动/倍速）。
+  const syncAudioToReplayer = (player: any) => {
+    if (!recordInfo?.audio || !recordEvents?.length) return;
+    const audio = recordInfo.audio;
+    const el = new Audio(audio.dataUrl);
+    const replayer = player.getReplayer();
+    const offsetMs = Math.max(0, audio.startedAt - (recordEvents[0]?.timestamp ?? 0));
+
+    let playing = false;
+    let raf = 0;
+    const tick = () => {
+      if (!replayer.wrapper?.isConnected) return;
+      if (playing) {
+        const expected = (offsetMs + replayer.getCurrentTime()) / 1000;
+        el.playbackRate = replayer.config?.speed ?? 1;
+        if (Number.isFinite(expected) && Math.abs(el.currentTime - expected) > 0.3) {
+          try {
+            el.currentTime = expected;
+          } catch {
+            // expected 超出音频时长时个别浏览器会抛，忽略即可
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    const play = () => {
+      playing = true;
+      void el.play().catch(() => {});
+    };
+    const stop = () => {
+      playing = false;
+      el.pause();
+    };
+    replayer.on('start', play);
+    replayer.on('play-back', play);
+    replayer.on('resume', play);
+    replayer.on('pause', stop);
+    replayer.on('finish', stop);
+    raf = requestAnimationFrame(tick);
   };
 
   const submit = async () => {
@@ -608,7 +638,7 @@ export default function App() {
 
       {/* 内容区：Spin 改为绝对定位遮罩，避免包裹层打断 flex 布局 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minHeight: 0 }}>
-          {activeTab === 'submit' && stage.kind === 'compose' && (
+          {activeTab === 'submit' && (
             <>
               {/* 工具栏 */}
               <div style={{ padding: '12px 16px 8px', flexShrink: 0 }}>
@@ -661,54 +691,73 @@ export default function App() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
-                {/* 录制缩略图：内嵌在编辑区内，居中播放按钮提示可回放 */}
+                {/* 录制缩略图：内嵌在编辑区内，点击展开/收起侧边栏内嵌回放（第一帧） */}
                 {recordInfo?.thumbnail && (
-                  <div style={{ position: 'relative', marginBottom: 12, flexShrink: 0 }}>
-                    <img
-                      src={recordInfo.thumbnail}
-                      onClick={previewRecording}
-                      style={{
-                        width: '100%',
-                        borderRadius: 6,
-                        display: 'block',
-                        cursor: 'pointer',
-                      }}
-                    />
-                    <div
-                      onClick={previewRecording}
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        background: 'rgba(0,0,0,0.15)',
-                        borderRadius: 6,
-                      }}
-                    >
-                      <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.55)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
-                          <path d="M8 5v14l11-7z"/>
-                        </svg>
+                  <div style={{ marginBottom: 12, flexShrink: 0 }}>
+                    <div style={{ position: 'relative' }}>
+                      <img
+                        src={recordInfo.thumbnail}
+                        onClick={previewRecording}
+                        style={{
+                          width: '100%',
+                          borderRadius: 6,
+                          display: 'block',
+                          cursor: 'pointer',
+                          opacity: previewLoading ? 0.6 : 1,
+                        }}
+                      />
+                      <div
+                        onClick={previewRecording}
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          background: 'rgba(0,0,0,0.15)',
+                          borderRadius: 6,
+                        }}
+                      >
+                        <div style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: '50%',
+                          background: 'rgba(0,0,0,0.55)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          {previewLoading ? (
+                            <Spin size="small" />
+                          ) : (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+                              <path d={previewOpen ? 'M6 19h4V5H6v14zm8-14v14h4V5h-4z' : 'M8 5v14l11-7z'}/>
+                            </svg>
+                          )}
+                        </div>
                       </div>
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => setRecordInfo(null)}
+                        style={{ position: 'absolute', top: 4, right: 4 }}
+                      />
                     </div>
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => setRecordInfo(null)}
-                      style={{ position: 'absolute', top: 4, right: 4 }}
-                    />
+                    {previewOpen && recordEvents && (
+                      <div style={{ marginTop: 10, borderRadius: 6, overflow: 'hidden', background: '#000' }}>
+                        <ReplayPlayer
+                          events={recordEvents}
+                          width={376}
+                          height={236}
+                          autoPlay={false}
+                          hideHint
+                          onReady={syncAudioToReplayer}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* 无缩略图时的录制信息条 */}
@@ -774,71 +823,21 @@ export default function App() {
                       }}>
                         <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
                         <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                          <span>
-                            Shot {idx + 1}
-                            {s.annotated && <span style={{ marginLeft: 8, color: 'var(--sh-accent)' }}>✓ Annotated</span>}
-                          </span>
-                          <Space size={4}>
-                            <Button
-                              size="small"
-                              type="text"
-                              icon={<EditOutlined />}
-                              loading={editingId === s.id}
-                              onClick={() => reannotate(s)}
-                            >
-                              Annotate
-                            </Button>
-                            <Button
-                              size="small"
-                              type="text"
-                              danger
-                              icon={<DeleteOutlined />}
-                              onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
-                            />
-                          </Space>
+                          <span>Screenshot {idx + 1}</span>
+                          <Button
+                            size="small"
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
+                          />
                         </div>
-                        {s.note && <div style={{ padding: '0 12px 8px', fontSize: 12, color: '#666' }}>{s.note}</div>}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </>
-          )}
-
-          {activeTab === 'submit' && stage.kind === 'record-confirm' && (
-            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-              <div style={{
-                textAlign: 'center',
-                padding: '32px 16px',
-                background: '#fff',
-                borderRadius: 12,
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}></div>
-                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert into issue?</div>
-                <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
-                  {stage.info.seconds}s · {stage.info.eventCount} events
-                  {stage.info.audio && ' · Audio'}
-                </div>
-                <Space size={12}>
-                  <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>
-                    Discard
-                  </Button>
-                  <Button
-                    type="primary"
-                    icon={<CheckOutlined />}
-                    style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
-                    onClick={() => {
-                      setRecordInfo(stage.info);
-                      setStage({ kind: 'compose' });
-                      message.success('Recording inserted');
-                    }}
-                  >
-                    Insert
-                  </Button>
-                </Space>
-              </div>
-            </div>
           )}
 
           {activeTab === 'cases' && (

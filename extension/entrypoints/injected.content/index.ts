@@ -343,9 +343,9 @@ async function startRecording(): Promise<{ ok: boolean; error?: string }> {
         comment: true,
       },
       sampling: {
-        mousemove: 80,
+        mousemove: 120,
         mouseInteraction: true,
-        scroll: 150,
+        scroll: 250,
         input: 'last',
       },
     }) as unknown as () => void;

@@ -9,16 +9,22 @@ export interface MicRecording {
   stop: () => Promise<AudioTrack | null>;
 }
 
-export async function startMicRecording(): Promise<MicRecording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+/** 仅请求麦克风权限并返回 stream，不启动录制。
+ * 用于 overlay 流程：先授权 → 倒计时 → 再正式开录。 */
+export async function requestMicPermission(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({ audio: true });
+}
+
+export async function startMicRecording(stream?: MediaStream): Promise<MicRecording> {
+  const actualStream = stream ?? (await navigator.mediaDevices.getUserMedia({ audio: true }));
   const mime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
     MediaRecorder.isTypeSupported(m)
   );
   const recorder = new MediaRecorder(
-    stream,
+    actualStream,
     mime
-      ? { mimeType: mime, audioBitsPerSecond: 24000 }
-      : { audioBitsPerSecond: 24000 }
+      ? { mimeType: mime, audioBitsPerSecond: 16000 }
+      : { audioBitsPerSecond: 16000 }
   );
   const chunks: Blob[] = [];
   const startedAt = Date.now();
@@ -34,7 +40,7 @@ export async function startMicRecording(): Promise<MicRecording> {
   };
   recorder.onstop = async () => {
     window.clearTimeout(timer);
-    stream.getTracks().forEach((t) => t.stop());
+    actualStream.getTracks().forEach((t) => t.stop());
     const blob = new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' });
     result = {
       startedAt,

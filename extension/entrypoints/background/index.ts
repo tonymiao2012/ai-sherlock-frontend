@@ -76,7 +76,7 @@ async function captureScreenshot(): Promise<
     if (!tab?.windowId) return { ok: false, error: 'No active window' };
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
       format: 'jpeg',
-      quality: 92,
+      quality: 80,
     });
     return { ok: true, dataUrl };
   } catch (e) {

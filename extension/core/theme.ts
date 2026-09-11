@@ -71,6 +71,10 @@ export const sherlockTheme: ThemeConfig = {
       primaryShadow: 'none',
       defaultBorderColor: palette.line,
       defaultColor: palette.ink,
+      defaultHoverColor: palette.accent,
+      defaultActiveColor: palette.accentHover,
+      defaultHoverBorderColor: palette.accentLine,
+      defaultActiveBorderColor: palette.accent,
     },
     Card: {
       borderRadiusLG: 14,
