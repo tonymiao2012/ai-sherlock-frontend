@@ -336,7 +336,14 @@ async function startRecording(): Promise<{ ok: boolean; error?: string }> {
           stopRecordingFn();
         }
       },
+      inlineStylesheet: false,
+      recordCanvas: false,
+      slimDOMOptions: {
+        script: true,
+        comment: true,
+      },
       sampling: {
+        mousemove: 80,
         mouseInteraction: true,
         scroll: 150,
         input: 'last',

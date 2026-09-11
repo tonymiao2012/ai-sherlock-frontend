@@ -14,7 +14,8 @@ import {
   type PreviewToContentMsg,
   type RuntimeMessage,
 } from '../../core/messages';
-import type { EvidenceDump } from '../../core/types';
+import type { AudioTrack, EvidenceDump } from '../../core/types';
+import { startMicRecording, type MicRecording } from '../../core/audio';
 
 export default defineContentScript({
   matches: ['http://*/*', 'https://*/*'],
@@ -128,13 +129,57 @@ async function startReannotate(dataUrl: string): Promise<CaptureResult> {
   return { ok: true, dataUrl: result.dataUrl, annotated: true };
 }
 
+/* ------------------------------------------------------- 录制 + 麦克风 */
+
+/** 当前录制会话的麦克风。授权必须在 content script 里发起：
+ *  Chrome 的麦克风授权框挂在页面所属站点上，extension 上下文（sidepanel）弹不了授权框 */
+let activeMic: MicRecording | null = null;
+
+/** 授权有结果（允许=带声音，拒绝/失败=纯录屏）后才启动 rrweb */
+async function startRecordingWithMic(): Promise<{
+  ok: boolean;
+  withAudio?: boolean;
+  error?: string;
+}> {
+  if (activeMic) return { ok: false, error: 'Recording already in progress' };
+  let mic: MicRecording | null = null;
+  try {
+    mic = await startMicRecording();
+  } catch {
+    mic = null;
+  }
+  const r = await postCommand('start-recording');
+  if (!r.ok) {
+    await mic?.stop().catch(() => null);
+    return { ok: false, error: r.error || 'The injected page script did not respond' };
+  }
+  activeMic = mic;
+  return { ok: true, withAudio: !!mic };
+}
+
+async function stopRecordingWithMic(): Promise<{
+  ok: boolean;
+  dump?: EvidenceDump;
+  error?: string;
+}> {
+  const r = await postCommand('stop-recording');
+  const mic = activeMic;
+  activeMic = null;
+  if (!r.ok) {
+    await mic?.stop().catch(() => null);
+    return { ok: false, error: r.error || 'The injected page script did not respond' };
+  }
+  const audio = mic ? await mic.stop().catch(() => null) : null;
+  return { ok: true, dump: { ...(r.payload as EvidenceDump), audio: audio ?? undefined } };
+}
+
 /* ---------------------------------------------------------------- 录制预览 */
 
 /** 当前打开中的预览遮罩；再次触发时先关闭（toggle） */
 let closePreview: (() => void) | null = null;
 
-/** 在当前页面上以遮罩 + iframe 预览本次录制的 rrweb 回放 */
-async function startRecordingPreview(): Promise<{ ok: boolean; error?: string }> {
+/** 在当前页面上以遮罩 + iframe 预览本次录制的 rrweb 回放（audio 若有则同步播放） */
+async function startRecordingPreview(audio?: AudioTrack): Promise<{ ok: boolean; error?: string }> {
   if (closePreview) {
     closePreview();
     return { ok: true };
@@ -171,7 +216,12 @@ async function startRecordingPreview(): Promise<{ ok: boolean; error?: string }>
     if (data.type === 'preview-ready') {
       // rrweb 事件体积可观，用 postMessage 直传（structured clone），不走 chrome.storage
       frame.contentWindow?.postMessage(
-        { source: CONTENT_SOURCE, type: 'preview-events', events } satisfies ContentToPreviewMsg,
+        {
+          source: CONTENT_SOURCE,
+          type: 'preview-events',
+          events,
+          audio,
+        } satisfies ContentToPreviewMsg,
         new URL(frame.src).origin
       );
     } else if (data.type === 'preview-close') {
@@ -801,15 +851,19 @@ function listenRuntimeCommands() {
         return true;
       }
       if (msg?.type === 'preview-recording') {
-        startRecordingPreview().then(sendResponse);
+        startRecordingPreview(msg.audio).then(sendResponse);
         return true;
       }
-      if (
-        msg?.type === 'dump-evidence' ||
-        msg?.type === 'start-recording' ||
-        msg?.type === 'stop-recording'
-      ) {
-        postCommand(msg.type).then((r) => {
+      if (msg?.type === 'start-recording') {
+        startRecordingWithMic().then(sendResponse);
+        return true;
+      }
+      if (msg?.type === 'stop-recording') {
+        stopRecordingWithMic().then(sendResponse);
+        return true;
+      }
+      if (msg?.type === 'dump-evidence') {
+        postCommand('dump-evidence').then((r) => {
           if (!r.ok) {
             sendResponse({
               ok: false,

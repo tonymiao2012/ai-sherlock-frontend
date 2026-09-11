@@ -14,7 +14,12 @@ export async function startMicRecording(): Promise<MicRecording> {
   const mime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
     MediaRecorder.isTypeSupported(m)
   );
-  const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const recorder = new MediaRecorder(
+    stream,
+    mime
+      ? { mimeType: mime, audioBitsPerSecond: 24000 }
+      : { audioBitsPerSecond: 24000 }
+  );
   const chunks: Blob[] = [];
   const startedAt = Date.now();
   let result: AudioTrack | null = null;

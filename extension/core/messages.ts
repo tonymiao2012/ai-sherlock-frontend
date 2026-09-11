@@ -34,6 +34,7 @@ export type ContentToPreviewMsg = {
   source: typeof CONTENT_SOURCE;
   type: 'preview-events';
   events: unknown[];
+  audio?: import('./types').AudioTrack;
 };
 
 /** chrome.runtime 消息（扩展上下文之间） */
@@ -47,7 +48,7 @@ export type RuntimeMessage =
   | { type: 'reannotate-image'; dataUrl: string }
   | { type: 'submit-issue'; form: UserFormInput; screenshots: import('./types').ScreenshotItem[]; audio?: import('./types').AudioTrack }
   | { type: 'dump-evidence' }
-  | { type: 'preview-recording' }
+  | { type: 'preview-recording'; audio?: import('./types').AudioTrack }
   | { type: 'start-recording' }
   | { type: 'stop-recording' }
   | { type: 'evidence-event'; event: EvidenceEvent }

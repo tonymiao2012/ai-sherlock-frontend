@@ -104,7 +104,7 @@ export interface SidebarDraft {
   title: string;
   description: string;
   shots: AnnotatedShot[];
-  record?: { seconds: number; eventCount: number; audio?: AudioTrack };
+  record?: { seconds: number; eventCount: number; audio?: AudioTrack; thumbnail?: string };
 }
 
 /** 用户表单输入 */
@@ -116,7 +116,7 @@ export interface UserFormInput {
   severity?: 'high' | 'medium' | 'low';
 }
 
-/** MAIN world 注入脚本回传的全量证据 */
+/** MAIN world 注入脚本回传的全量证据（audio 由 content script 合入） */
 export interface EvidenceDump {
   pageContext: PageContext;
   network: NetworkEntry[];
@@ -125,6 +125,7 @@ export interface EvidenceDump {
   rrwebEvents: unknown[];
   recordingActive: boolean;
   recordingSeconds: number;
+  audio?: AudioTrack;
 }
 
 /** 最终问题包（插件与后端的交接对象） */

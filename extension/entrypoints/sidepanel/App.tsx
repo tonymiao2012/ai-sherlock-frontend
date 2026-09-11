@@ -16,7 +16,6 @@ import {
 } from '@ant-design/icons';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
 import { sendRuntime, uid, type CaptureResult } from '../../core/messages';
-import { startMicRecording, type MicRecording } from '../../core/audio';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
 import {
   isPendingVerifyStatus,
@@ -30,6 +29,8 @@ interface RecordInfo {
   seconds: number;
   eventCount: number;
   audio?: AudioTrack;
+  /** 停止录制时的页面缩略图（本地预览用，不进提交 payload） */
+  thumbnail?: string;
 }
 
 type Stage =
@@ -154,6 +155,7 @@ export default function App() {
   const [shots, setShots] = useState<AnnotatedShot[]>([]);
   const [capturing, setCapturing] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [startingRec, setStartingRec] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordInfo, setRecordInfo] = useState<RecordInfo | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -165,7 +167,6 @@ export default function App() {
   const [pendingVerifyCount, setPendingVerifyCount] = useState(0);
   const [successInfo, setSuccessInfo] = useState<{ caseKey?: string } | null>(null);
   const recordTimerRef = useRef<number | null>(null);
-  const micRef = useRef<MicRecording | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
@@ -217,15 +218,21 @@ export default function App() {
     };
   }, [recording]);
 
-  // 草稿恢复：面板重开后接回上次未提交的内容
+  // 草稿恢复：面板重开后接回上次未提交的内容。
+  // 录制卡（事件流/音频仍在页面上）只在同一扩展会话内恢复：chrome.storage.session
+  // 会在扩展重载/浏览器重启时清空，作为会话哨兵，避免恢复出一张点不动预览的死卡。
   useEffect(() => {
-    loadDraft()
-      .then((draft) => {
+    Promise.all([loadDraft(), chrome.storage.session.get('recordAlive')])
+      .then(([draft, session]) => {
         if (draft) {
           setTitle(draft.title);
           setText(draft.description);
           setShots(draft.shots ?? []);
-          setRecordInfo(draft.record ?? null);
+          const record = session.recordAlive ? (draft.record ?? null) : null;
+          setRecordInfo(record);
+          if (draft.record && !record) {
+            void saveDraft({ ...draft, record: undefined });
+          }
         }
         setDraftReady(true);
       })
@@ -255,6 +262,15 @@ export default function App() {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     };
   }, [draftReady, title, text, shots, recordInfo]);
+
+  // 录制卡会话哨兵：有录制卡才标记；扩展重载后 storage.session 被清，恢复时据此丢弃死卡
+  useEffect(() => {
+    if (recordInfo) {
+      void chrome.storage.session.set({ recordAlive: true });
+    } else if (draftReady) {
+      void chrome.storage.session.remove('recordAlive');
+    }
+  }, [recordInfo, draftReady]);
 
   // 加载 Case 列表（点击 Cases tab 从后端同步最新状态；打开面板时拉一次）
   // 已有数据时静默刷新，旧列表原地保留，避免切 Tab 闪 Loading
@@ -403,87 +419,68 @@ export default function App() {
     }
   };
 
-  // 开始录制：先解决麦克风授权（允许=带声音；不允许/关掉授权页=纯录屏），再启动 rrweb
+  // 开始录制：content script 在当前页面上完成麦克风授权（允许=带声音），有结果才启动 rrweb
   const startRecordingFlow = async () => {
-    let mic: MicRecording | null = null;
+    if (startingRec) return;
+    setStartingRec(true);
     try {
-      mic = await startMicRecording();
-    } catch (e) {
-      if ((e as DOMException)?.name === 'NotAllowedError') {
-        const granted = await requestMicPermissionViaTab();
-        if (granted) {
-          try {
-            mic = await startMicRecording();
-          } catch {
-            mic = null;
-          }
-        }
+      const resp = (await sendToTab('start-recording')) as any;
+      if (resp?.ok) {
+        setRecording(true);
+        setRecordSeconds(0);
+        setStage({ kind: 'compose' });
+        message.success(
+          resp.withAudio
+            ? 'Recording with audio — go reproduce the issue'
+            : 'Recording without audio — go reproduce the issue'
+        );
+      } else {
+        message.error(`Failed to start recording: ${resp?.error ?? ''}`);
       }
-    }
-
-    const resp = await sendToTab('start-recording');
-    if ((resp as any)?.ok) {
-      micRef.current = mic;
-      setRecording(true);
-      setRecordSeconds(0);
-      setStage({ kind: 'compose' });
-      message.success(
-        mic
-          ? 'Recording with audio — go reproduce the issue'
-          : 'Recording without audio — go reproduce the issue'
-      );
-    } else {
-      await mic?.stop().catch(() => null);
-      message.error(`Failed to start recording: ${(resp as any)?.error ?? ''}`);
+    } finally {
+      setStartingRec(false);
     }
   };
 
-  // 授权框挂不上 sidepanel：开普通标签页完成授权，允许/拒绝/关页三种结果都会返回
-  const requestMicPermissionViaTab = (): Promise<boolean> =>
-    new Promise((resolve) => {
-      let tabId: number | null = null;
-      const onMessage = (msg: unknown) => {
-        const m = msg as { type?: string; ok?: boolean };
-        if (m?.type === 'mic-grant-result') {
-          cleanup();
-          resolve(!!m.ok);
-        }
-      };
-      const onRemoved = (tid: number) => {
-        if (tabId != null && tid === tabId) {
-          cleanup();
-          resolve(false);
-        }
-      };
-      const cleanup = () => {
-        chrome.runtime.onMessage.removeListener(onMessage);
-        chrome.tabs.onRemoved.removeListener(onRemoved);
-      };
-      chrome.runtime.onMessage.addListener(onMessage);
-      chrome.tabs.onRemoved.addListener(onRemoved);
-      chrome.tabs.create({ url: chrome.runtime.getURL('/mic-grant.html') }, (tab) => {
-        tabId = tab?.id ?? null;
-        if (tabId == null) {
-          cleanup();
-          resolve(false);
-        }
+  // 停止录制时的页面缩略图：保持宽高比压到最大宽 640（后续会嵌入文本框，仅本地预览）
+  const captureThumbnail = async (): Promise<string | undefined> => {
+    try {
+      const dataUrl = await chrome.tabs.captureVisibleTab({
+        format: 'jpeg',
+        quality: 70,
       });
-    });
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = dataUrl;
+      });
+      const k = Math.min(1, 640 / img.width);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      const ctx = c.getContext('2d');
+      if (!ctx) return undefined;
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.7);
+    } catch {
+      return undefined;
+    }
+  };
 
-  // 停止录制 -> 停止后进入确认视图
+  // 停止录制 -> 停止后进入确认视图（音频由 content script 一并回传）
   const stopRecording = async () => {
     const resp = (await sendToTab('stop-recording')) as any;
     setRecording(false);
-    const mic = micRef.current;
-    micRef.current = null;
-    const audio = mic ? await mic.stop().catch(() => null) : null;
     if (resp?.ok && resp.dump) {
+      const thumbnail = await captureThumbnail();
       setStage({
         kind: 'record-confirm',
         info: {
           seconds: resp.dump.recordingSeconds ?? recordSeconds,
           eventCount: resp.dump.rrwebEvents?.length ?? 0,
-          audio: audio ?? undefined,
+          audio: resp.dump.audio ?? undefined,
+          thumbnail: thumbnail ?? undefined,
         },
       });
     } else {
@@ -491,15 +488,19 @@ export default function App() {
     }
   };
 
-  // 在当前页面遮罩预览录制回放
+  // 在当前页面遮罩预览录制回放（音频一并传入，随回放同步播放）
   const previewRecording = async () => {
-    const resp = (await sendToTab('preview-recording')) as any;
+    const resp = (await sendToTab('preview-recording', { audio: recordInfo?.audio })) as any;
     if (resp?.ok === false) {
       message.warning(resp.error || 'Preview failed');
     }
   };
 
   const submit = async () => {
+    if (!title.trim()) {
+      message.warning('Please enter an issue title');
+      return;
+    }
     if (!text.trim() && shots.length === 0 && !recordInfo) {
       message.warning('Add a description, a screenshot or a recording first');
       return;
@@ -538,7 +539,7 @@ export default function App() {
   return (
     <div className="editor-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* 品牌头 + Tab：Logo 与 Tab 垂直居中；Tab 轨道贴右、底部与内容区相连 */}
-      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0 0' }}>
+      <header className="editor-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0px 16px 0px 0px' }}>
         <div className="sh-brand">
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock</span>
@@ -650,7 +651,7 @@ export default function App() {
                 {recording && <span style={{ marginLeft: 12, color: '#ff4d4f', fontSize: 12 }}>● REC</span>}
               </div>
 
-              {/* 编辑区：标题 + 文本框占满剩余空间 */}
+              {/* 编辑区：标题 + 录制缩略图 + 文本框占满剩余空间 */}
               <div style={{
                 flex: 1,
                 display: 'flex',
@@ -678,6 +679,86 @@ export default function App() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
+                {/* 录制缩略图：内嵌在编辑区内，居中播放按钮提示可回放 */}
+                {recordInfo?.thumbnail && (
+                  <div style={{ position: 'relative', marginBottom: 12, flexShrink: 0 }}>
+                    <img
+                      src={recordInfo.thumbnail}
+                      onClick={previewRecording}
+                      style={{
+                        width: '100%',
+                        borderRadius: 6,
+                        display: 'block',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <div
+                      onClick={previewRecording}
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        background: 'rgba(0,0,0,0.15)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '50%',
+                        background: 'rgba(0,0,0,0.55)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setRecordInfo(null)}
+                      style={{ position: 'absolute', top: 4, right: 4 }}
+                    />
+                  </div>
+                )}
+                {/* 无缩略图时的录制信息条 */}
+                {recordInfo && !recordInfo.thumbnail && (
+                  <div style={{
+                    marginBottom: 12,
+                    padding: '8px 12px',
+                    background: '#f6f6f6',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0,
+                  }}>
+                    <span
+                      onClick={previewRecording}
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    >
+                      <VideoCameraOutlined style={{ marginRight: 8 }} />
+                      Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
+                      {recordInfo.audio && ' · Audio'}
+                    </span>
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setRecordInfo(null)}
+                    />
+                  </div>
+                )}
                 <textarea
                   ref={textRef}
                   style={{
@@ -698,77 +779,46 @@ export default function App() {
                 />
               </div>
 
-              {/* 截图 & 录制信息（可滚动） */}
-              {(shots.length > 0 || recordInfo) && (
+              {/* 截图（可滚动） */}
+              {shots.length > 0 && (
                 <div style={{ flexShrink: 0, maxHeight: '30%', overflow: 'auto', padding: '8px 16px' }}>
-                  {shots.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {shots.map((s, idx) => (
-                        <div key={s.id} style={{
-                          border: '1px solid #e8e8e8',
-                          borderRadius: 8,
-                          overflow: 'hidden',
-                          background: '#fff',
-                        }}>
-                          <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
-                          <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                            <span>
-                              Shot {idx + 1}
-                              {s.annotated && <span style={{ marginLeft: 8, color: 'var(--sh-accent)' }}>✓ Annotated</span>}
-                            </span>
-                            <Space size={4}>
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<EditOutlined />}
-                                loading={editingId === s.id}
-                                onClick={() => reannotate(s)}
-                              >
-                                Annotate
-                              </Button>
-                              <Button
-                                size="small"
-                                type="text"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
-                              />
-                            </Space>
-                          </div>
-                          {s.note && <div style={{ padding: '0 12px 8px', fontSize: 12, color: '#666' }}>{s.note}</div>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {shots.map((s, idx) => (
+                      <div key={s.id} style={{
+                        border: '1px solid #e8e8e8',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#fff',
+                      }}>
+                        <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
+                        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                          <span>
+                            Shot {idx + 1}
+                            {s.annotated && <span style={{ marginLeft: 8, color: 'var(--sh-accent)' }}>✓ Annotated</span>}
+                          </span>
+                          <Space size={4}>
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<EditOutlined />}
+                              loading={editingId === s.id}
+                              onClick={() => reannotate(s)}
+                            >
+                              Annotate
+                            </Button>
+                            <Button
+                              size="small"
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
+                            />
+                          </Space>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {recordInfo && (
-                    <div style={{
-                      marginTop: 12,
-                      padding: 12,
-                      background: '#fff',
-                      border: '1px solid #e8e8e8',
-                      borderRadius: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: 13,
-                    }}>
-                      <span
-                        onClick={previewRecording}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <VideoCameraOutlined style={{ marginRight: 8 }} />
-                        Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
-                        {recordInfo.audio && ' · Audio'}
-                      </span>
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => setRecordInfo(null)}
-                      />
-                    </div>
-                  )}
+                        {s.note && <div style={{ padding: '0 12px 8px', fontSize: 12, color: '#666' }}>{s.note}</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -787,16 +837,17 @@ export default function App() {
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 24, lineHeight: 1.8 }}>
                   Your page actions and microphone audio will be recorded.
                   <br />
-                  First time? A tab will open to ask for mic permission.
+                  First time on this site? Chrome will ask for mic permission on the page.
                 </div>
                 <Space size={12}>
-                  <Button icon={<CloseOutlined />} onClick={() => setStage({ kind: 'compose' })}>
+                  <Button icon={<CloseOutlined />} disabled={startingRec} onClick={() => setStage({ kind: 'compose' })}>
                     Cancel
                   </Button>
                   <Button
                     type="primary"
                     icon={<CheckOutlined />}
                     style={{ background: 'var(--sh-accent)', borderColor: 'var(--sh-accent)' }}
+                    loading={startingRec}
                     onClick={startRecordingFlow}
                   >
                     Start
@@ -815,7 +866,7 @@ export default function App() {
                 borderRadius: 12,
               }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}></div>
-                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert it?</div>
+                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Recording finished. Insert into issue?</div>
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
                   {stage.info.seconds}s · {stage.info.eventCount} events
                   {stage.info.audio && ' · Audio'}

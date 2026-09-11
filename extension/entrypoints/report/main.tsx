@@ -3,15 +3,20 @@
 import 'antd/dist/reset.css';
 import '../../styles/theme.css';
 import './style.css';
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ThemeProvider from '../../components/ThemeProvider';
 import ReportApp from '../../components/ReportApp';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <ReportApp />
-    </ThemeProvider>
-  </React.StrictMode>
+const rootEl = document.getElementById('root')!;
+const existingRoot = (rootEl as any).__ai_sherlock_root__ as ReturnType<typeof ReactDOM.createRoot> | undefined;
+const app = (
+  <ThemeProvider>
+    <ReportApp />
+  </ThemeProvider>
 );
+if (existingRoot) {
+  existingRoot.render(app);
+} else {
+  (rootEl as any).__ai_sherlock_root__ = ReactDOM.createRoot(rootEl);
+  (rootEl as any).__ai_sherlock_root__.render(app);
+}

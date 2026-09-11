@@ -122,22 +122,20 @@ export default function ReportApp() {
           <img className="sh-brand-logo" src={BRAND_LOGO_URL} alt="AI Sherlock" />
           <span className="sh-brand-name">AI Sherlock Report</span>
         </div>
+        <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {report.caseKey ?? report.issueId}
+          <CopyOutlined
+            style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
+            onClick={() => {
+              navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
+                message.success('Copied');
+              });
+            }}
+          />
+        </span>
       </header>
 
       <Tabs
-        tabBarExtraContent={
-          <span className="sh-pill sh-pill--brand" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {report.caseKey ?? report.issueId}
-            <CopyOutlined
-              style={{ cursor: 'pointer', color: '#999', fontSize: 12 }}
-              onClick={() => {
-                navigator.clipboard.writeText(report.caseKey ?? report.issueId).then(() => {
-                  message.success('Copied');
-                });
-              }}
-            />
-          </span>
-        }
         items={[
           {
             key: 'overview',
@@ -358,7 +356,13 @@ export default function ReportApp() {
           {
             key: 'replay',
             label: `Replay(${report.rrwebEvents?.length ?? 0})`,
-            children: <ReplayPlayer events={(report.rrwebEvents ?? []) as any} />,
+            children: (
+              <ReplayPlayer
+                events={(report.rrwebEvents ?? []) as any}
+                hideHint
+                onReady={syncAudio(report.audio, report.rrwebEvents ?? [])}
+              />
+            ),
           },
           {
             key: 'root-cause',
@@ -449,6 +453,49 @@ export default function ReportApp() {
       />
     </div>
   );
+}
+
+/** 让音频跟随 rrweb 回放：start/play-back/resume 时播放，pause/finish 时暂停，rAF 同步进度 */
+function syncAudio(audio: IssuePackage['audio'], events: unknown[]) {
+  return (player: any) => {
+    if (!audio?.dataUrl || !events.length) return;
+    const el = new Audio(audio.dataUrl);
+    const replayer = player.getReplayer?.() ?? player;
+    const firstTs = (events[0] as any)?.timestamp ?? 0;
+    const offsetMs = Math.max(0, audio.startedAt - firstTs);
+
+    let playing = false;
+    let raf = 0;
+    const tick = () => {
+      if (!replayer.wrapper?.isConnected) return;
+      if (playing) {
+        const expected = (offsetMs + replayer.getCurrentTime()) / 1000;
+        el.playbackRate = replayer.config?.speed ?? 1;
+        if (Number.isFinite(expected) && Math.abs(el.currentTime - expected) > 0.3) {
+          try {
+            el.currentTime = expected;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    const play = () => {
+      playing = true;
+      void el.play().catch(() => {});
+    };
+    const stop = () => {
+      playing = false;
+      el.pause();
+    };
+    replayer.on('start', play);
+    replayer.on('play-back', play);
+    replayer.on('resume', play);
+    replayer.on('pause', stop);
+    replayer.on('finish', stop);
+    raf = requestAnimationFrame(tick);
+  };
 }
 
 /** 有 findings 按 findings 计数；没有但分析有总结文本也算 1 条结果 */
