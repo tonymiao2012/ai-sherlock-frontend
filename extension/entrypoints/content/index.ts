@@ -778,7 +778,6 @@ function startRecordingOverlay(): void {
 @keyframes shr-fadein{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @keyframes shr-pulse-ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.2);opacity:0}}
 @keyframes shr-count-in{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
-@keyframes shr-rec-dot{0%,100%{opacity:1}50%{opacity:.25}}
 `;
   overlay.appendChild(style);
 
@@ -887,13 +886,19 @@ function startRecordingOverlay(): void {
     num.remove();
     ring.remove();
 
-    statusEl.textContent = 'Starting recording…';
-    overlay.appendChild(statusEl);
+    // rrweb 全量快照在 start-recording 期间生成，先清掉确认弹层，
+    // 否则录制首帧会带遮罩和状态文字
+    statusEl.remove();
+    overlay.style.background = 'transparent';
+    overlay.style.pointerEvents = 'none';
 
     const r = await postCommand('start-recording');
     if (!r.ok) {
       permissionStream?.getTracks().forEach((t) => t.stop());
+      overlay.style.background = 'rgba(0,0,0,0.55)';
+      overlay.style.pointerEvents = 'auto';
       statusEl.textContent = 'Failed to start recording';
+      overlay.appendChild(statusEl);
       await sleep(1500);
       cancel();
       return;
@@ -910,48 +915,36 @@ function startRecordingOverlay(): void {
       }
     }
     activeMic = mic;
-    const withAudio = !!mic;
 
     try {
       chrome.runtime.sendMessage({ type: 'recording-started' } as RuntimeMessage, () => void chrome.runtime.lastError);
     } catch { /* ignore */ }
 
-    statusEl.remove();
     window.removeEventListener('keydown', onKey, true);
 
-    showRecordingBar(overlay, withAudio, micStartTime || Date.now());
-
-    overlay.style.background = 'transparent';
-    overlay.style.pointerEvents = 'none';
+    showRecordingBar(overlay, micStartTime || Date.now());
   };
 }
 
-/** 阶段 3：底部浮动录制控制条（计时 + 停止按钮） */
-function showRecordingBar(overlay: HTMLElement, withAudio: boolean, startTime: number): void {
+/** 阶段 3：右侧竖排浮动录制控制条（计时 + 停止按钮） */
+function showRecordingBar(overlay: HTMLElement, startTime: number): void {
   const bar = document.createElement('div');
   bar.className = 'sh-rec-bar';
   bar.style.cssText =
-    'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:10px 10px 10px 18px;background:rgba(30,30,30,.92);border-radius:999px;box-shadow:0 8px 32px rgba(0,0,0,.45);backdrop-filter:blur(12px);z-index:2147483647;pointer-events:auto;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;opacity:0;transition:opacity .2s ease-out;';
-
-  const dot = document.createElement('div');
-  dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:#ff4d4f;animation:shr-rec-dot 1.2s ease-in-out infinite;flex-shrink:0;';
+    'position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 8px;background:rgba(30,30,30,.92);border-radius:999px;box-shadow:0 8px 32px rgba(0,0,0,.45);backdrop-filter:blur(12px);z-index:2147483647;pointer-events:auto;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;opacity:0;transition:opacity .2s ease-out;';
 
   const timer = document.createElement('div');
-  timer.style.cssText = 'color:#fff;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;min-width:42px;';
-
-  const label = document.createElement('div');
-  label.style.cssText = 'color:rgba(255,255,255,.5);font-size:12px;white-space:nowrap;';
-  label.textContent = withAudio ? 'REC · Audio' : 'REC';
+  timer.style.cssText = 'color:#fff;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;min-width:34px;text-align:center;';
 
   const stopBtn = document.createElement('button');
   stopBtn.style.cssText =
-    'display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:#ff4d4f;cursor:pointer;flex-shrink:0;transition:background .15s;';
+    'display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:none;background:#ff4d4f;cursor:pointer;flex-shrink:0;transition:background .15s;';
   stopBtn.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg>';
   stopBtn.addEventListener('mouseenter', () => { stopBtn.style.background = '#e03e3e'; });
   stopBtn.addEventListener('mouseleave', () => { stopBtn.style.background = '#ff4d4f'; });
 
-  bar.append(dot, timer, label, stopBtn);
+  bar.append(timer, stopBtn);
   overlay.appendChild(bar);
   void bar.offsetWidth;
   bar.style.opacity = '1';
@@ -992,19 +985,19 @@ function openReplayOverlay(events: eventWithTime[], audio?: AudioTrack) {
   root.style.cssText =
     'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;';
 
-  const container = document.createElement('div');
-  container.style.cssText = 'position:relative;';
-
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '✕';
   closeBtn.style.cssText =
-    'position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:15px;cursor:pointer;line-height:1;z-index:10;display:flex;align-items:center;justify-content:center;';
-  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(0,0,0,.8)'; });
-  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'rgba(0,0,0,.55)'; });
+    'position:absolute;top:24px;right:28px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:18px;cursor:pointer;line-height:1;z-index:10;display:flex;align-items:center;justify-content:center;';
+  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(255,255,255,.25)'; });
+  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'rgba(255,255,255,.12)'; });
   closeBtn.addEventListener('click', close);
+  root.appendChild(closeBtn);
 
-  container.appendChild(closeBtn);
+  const container = document.createElement('div');
+  container.style.cssText = 'position:relative;';
+
   root.appendChild(container);
   document.documentElement.appendChild(root);
 
@@ -1021,9 +1014,9 @@ function openReplayOverlay(events: eventWithTime[], audio?: AudioTrack) {
     target: container,
     props: {
       events,
-      width: Math.min(880, window.innerWidth * 0.78),
-      height: Math.min(560, window.innerHeight * 0.74),
-      autoPlay: true,
+      width: Math.min(1040, window.innerWidth * 0.85),
+      height: Math.min(650, window.innerHeight * 0.8),
+      autoPlay: false,
       showController: true,
     },
   });
