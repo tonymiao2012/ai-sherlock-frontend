@@ -342,6 +342,9 @@ async function startRecording(): Promise<{ ok: boolean; error?: string }> {
         script: true,
         comment: true,
       },
+      ignore: (node: Node) =>
+        node.nodeType === 1 &&
+        (node as Element).classList?.contains('sh-rec-bar') === true,
       sampling: {
         mousemove: 120,
         mouseInteraction: true,

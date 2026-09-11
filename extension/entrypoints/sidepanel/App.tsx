@@ -7,13 +7,11 @@ import {
   CameraOutlined,
   CheckCircleFilled,
   CopyOutlined,
-  DeleteOutlined,
   SendOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import type { eventWithTime } from '@rrweb/types';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
-import ReplayPlayer from '../../components/ReplayPlayer';
 import { sendRuntime, uid, type CaptureResult, type RuntimeMessage } from '../../core/messages';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
 import {
@@ -151,7 +149,6 @@ export default function App() {
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordInfo, setRecordInfo] = useState<RecordInfo | null>(null);
   const [recordEvents, setRecordEvents] = useState<eventWithTime[] | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
@@ -162,7 +159,8 @@ export default function App() {
   const [successInfo, setSuccessInfo] = useState<{ caseKey?: string } | null>(null);
   const recordTimerRef = useRef<number | null>(null);
   const draftTimerRef = useRef<number | null>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastSelectionRef = useRef<Range | null>(null);
 
   // 快捷键：⌥/Alt+C 截图、⌥/Alt+V 录制（面板聚焦时生效；用 e.code 兼容 macOS Alt 特殊字符）
   const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -210,6 +208,10 @@ export default function App() {
           setTitle(draft.title);
           setText(draft.description);
           setShots(draft.shots ?? []);
+          // 恢复 contenteditable 编辑器内容（含内联截图位置）
+          if (draft.editorHtml && editorRef.current) {
+            editorRef.current.innerHTML = draft.editorHtml;
+          }
           const record = session.recordAlive ? (draft.record ?? null) : null;
           setRecordInfo(record);
           if (draft.record && !record) {
@@ -224,11 +226,13 @@ export default function App() {
   // 草稿落盘：内容变化后防抖写入（截图是 base64，避免每次按键写整包）
   useEffect(() => {
     if (!draftReady) return;
+    const editorHtml = editorRef.current?.innerHTML || '';
     const draft: SidebarDraft = {
       title,
       description: text,
       shots,
       record: recordInfo ?? undefined,
+      editorHtml,
     };
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     draftTimerRef.current = window.setTimeout(() => {
@@ -254,9 +258,8 @@ export default function App() {
     }
   }, [recordInfo, draftReady]);
 
-  // 录制卡被替换或删除时，关闭内嵌预览并清掉旧事件
+  // 录制卡被替换或删除时，清掉旧事件
   useEffect(() => {
-    setPreviewOpen(false);
     setRecordEvents(null);
   }, [recordInfo?.audio?.startedAt, recordInfo?.seconds]);
 
@@ -344,7 +347,101 @@ export default function App() {
     }
   };
 
-  // 截图：截取全页 → 页面框选 → 批注 → 插入到编辑区
+  // 保存/恢复 contenteditable 光标位置，用于在光标处插入图片
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      lastSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreSelection = () => {
+    const range = lastSelectionRef.current;
+    if (!range) return false;
+    const sel = window.getSelection();
+    if (!sel) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  };
+
+  // 在 contenteditable 光标位置（或末尾）插入一张内联截图（独占一行，点击可重新批注）
+  const insertShotInline = (shot: AnnotatedShot) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    restoreSelection();
+
+    const wrapper = document.createElement('div');
+    wrapper.contentEditable = 'false';
+    wrapper.dataset.shotId = shot.id;
+    wrapper.style.cssText = 'position:relative;max-width:100%;margin:6px 0;cursor:pointer;';
+
+    const img = document.createElement('img');
+    img.src = shot.dataUrl;
+    img.dataset.dataUrl = shot.dataUrl;
+    img.alt = 'Screenshot';
+    img.style.cssText = 'max-width:100%;border-radius:6px;display:block;border:1px solid #e8e8e8;';
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    del.style.cssText = 'position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:6px;border:none;background:#ff4d4f;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
+    del.addEventListener('mouseenter', () => { del.style.background = '#ff7875'; });
+    del.addEventListener('mouseleave', () => { del.style.background = '#ff4d4f'; });
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      wrapper.remove();
+      setShots((prev) => prev.filter((x) => x.id !== shot.id));
+      syncTextFromEditor();
+    });
+
+    img.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const currentDataUrl = img.dataset.dataUrl || shot.dataUrl;
+      const result = (await sendToTab('reannotate-image', {
+        dataUrl: currentDataUrl,
+      })) as CaptureResult | undefined;
+      if (!result?.ok || !result.dataUrl) return;
+      img.src = result.dataUrl;
+      img.dataset.dataUrl = result.dataUrl;
+      setShots((prev) =>
+        prev.map((s) => (s.id === shot.id ? { ...s, dataUrl: result.dataUrl, annotated: true } : s))
+      );
+      syncTextFromEditor();
+    });
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(del);
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(wrapper);
+      const br = document.createElement('br');
+      wrapper.after(br);
+      const newRange = document.createRange();
+      newRange.setStartAfter(br);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      editor.appendChild(wrapper);
+      editor.appendChild(document.createElement('br'));
+    }
+    syncTextFromEditor();
+  };
+
+  // 从 contenteditable 同步纯文本到 text state（用于草稿 & 提交）
+  const syncTextFromEditor = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    setText(editor.innerText || '');
+  };
+
+  // 截图：截取全页 → 页面框选 → 批注 → 内联插入到编辑区
   const capture = async () => {
     setCapturing(true);
     try {
@@ -369,11 +466,9 @@ export default function App() {
         if (!result.canceled) message.error(`Capture failed: ${result.error}`);
         return;
       }
-      setShots((prev) => [
-        ...prev,
-        { id: uid('shot-'), dataUrl: result.dataUrl, annotated: result.annotated },
-      ]);
-      message.success('Screenshot inserted');
+      const shot: AnnotatedShot = { id: uid('shot-'), dataUrl: result.dataUrl, annotated: result.annotated };
+      setShots((prev) => [...prev, shot]);
+      insertShotInline(shot);
     } catch (e) {
       console.error('[AI Sherlock] capture error:', e);
       message.error(`Capture error: ${(e as Error).message}`);
@@ -408,7 +503,6 @@ export default function App() {
             audio: dump.audio ?? undefined,
             thumbnail,
           });
-          message.success('Recording inserted');
         });
       }
     };
@@ -443,15 +537,10 @@ export default function App() {
     }
   };
 
-  // 在侧边栏内嵌展开第一帧预览：从 content script 拉取 rrweb 事件，
-  // 用 ReplayPlayer 直接渲染（autoPlay=false），不再打开全页遮罩。
+  // 在主页面全屏回放 rrweb 录制
   const previewRecording = async () => {
-    if (previewOpen) {
-      setPreviewOpen(false);
-      return;
-    }
     if (recordEvents) {
-      setPreviewOpen(true);
+      sendToTab('open-replay', { events: recordEvents, audio: recordInfo?.audio });
       return;
     }
     setPreviewLoading(true);
@@ -470,54 +559,12 @@ export default function App() {
         return;
       }
       setRecordEvents(events as eventWithTime[]);
-      setPreviewOpen(true);
+      sendToTab('open-replay', { events: events as eventWithTime[], audio: recordInfo?.audio });
     } catch (e) {
       message.warning(`Preview error: ${(e as Error).message}`);
     } finally {
       setPreviewLoading(false);
     }
-  };
-
-  // 音频跟随 rrweb 回放：start/play-back/resume 播放，pause/finish 暂停，
-  // rAF 持续校正 currentTime（覆盖拖动/倍速）。
-  const syncAudioToReplayer = (player: any) => {
-    if (!recordInfo?.audio || !recordEvents?.length) return;
-    const audio = recordInfo.audio;
-    const el = new Audio(audio.dataUrl);
-    const replayer = player.getReplayer();
-    const offsetMs = Math.max(0, audio.startedAt - (recordEvents[0]?.timestamp ?? 0));
-
-    let playing = false;
-    let raf = 0;
-    const tick = () => {
-      if (!replayer.wrapper?.isConnected) return;
-      if (playing) {
-        const expected = (offsetMs + replayer.getCurrentTime()) / 1000;
-        el.playbackRate = replayer.config?.speed ?? 1;
-        if (Number.isFinite(expected) && Math.abs(el.currentTime - expected) > 0.3) {
-          try {
-            el.currentTime = expected;
-          } catch {
-            // expected 超出音频时长时个别浏览器会抛，忽略即可
-          }
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    const play = () => {
-      playing = true;
-      void el.play().catch(() => {});
-    };
-    const stop = () => {
-      playing = false;
-      el.pause();
-    };
-    replayer.on('start', play);
-    replayer.on('play-back', play);
-    replayer.on('resume', play);
-    replayer.on('pause', stop);
-    replayer.on('finish', stop);
-    raf = requestAnimationFrame(tick);
   };
 
   const submit = async () => {
@@ -550,6 +597,7 @@ export default function App() {
         setText('');
         setShots([]);
         setRecordInfo(null);
+        if (editorRef.current) editorRef.current.innerHTML = '';
         await clearDraft();
         setSuccessInfo({ caseKey: resp.caseKey });
       } else {
@@ -735,32 +783,38 @@ export default function App() {
                             <Spin size="small" />
                           ) : (
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
-                              <path d={previewOpen ? 'M6 19h4V5H6v14zm8-14v14h4V5h-4z' : 'M8 5v14l11-7z'}/>
+                              <path d="M8 5v14l11-7z"/>
                             </svg>
                           )}
                         </div>
                       </div>
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => setRecordInfo(null)}
-                        style={{ position: 'absolute', top: 4, right: 4 }}
-                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setRecordInfo(null); }}
+                        style={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          border: 'none',
+                          background: '#ff4d4f',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                          zIndex: 10,
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#ff7875'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#ff4d4f'; }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
                     </div>
-                    {previewOpen && recordEvents && (
-                      <div style={{ marginTop: 10, borderRadius: 6, overflow: 'hidden', background: '#000' }}>
-                        <ReplayPlayer
-                          events={recordEvents}
-                          width={376}
-                          height={236}
-                          autoPlay={false}
-                          hideHint
-                          onReady={syncAudioToReplayer}
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
                 {/* 无缩略图时的录制信息条 */}
@@ -784,17 +838,37 @@ export default function App() {
                       Recording: {recordInfo.seconds}s · {recordInfo.eventCount} events
                       {recordInfo.audio && ' · Audio'}
                     </span>
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
+                    <button
+                      type="button"
                       onClick={() => setRecordInfo(null)}
-                    />
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        border: 'none',
+                        background: '#ff4d4f',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        flexShrink: 0,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#ff7875'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#ff4d4f'; }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
                   </div>
                 )}
-                <textarea
-                  ref={textRef}
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={syncTextFromEditor}
+                  onBlur={saveSelection}
                   style={{
                     width: '100%',
                     flex: 1,
@@ -803,43 +877,16 @@ export default function App() {
                     fontSize: 14,
                     outline: 'none',
                     background: 'transparent',
-                    resize: 'none',
                     minHeight: 0,
                     fontFamily: 'inherit',
+                    lineHeight: 1.6,
+                    overflowY: 'auto',
+                    wordBreak: 'break-word',
                   }}
-                  placeholder="What happened, what it breaks, what you expected…"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  data-placeholder="What happened, what it breaks, what you expected…"
                 />
               </div>
 
-              {/* 截图（可滚动） */}
-              {shots.length > 0 && (
-                <div style={{ flexShrink: 0, maxHeight: '30%', overflow: 'auto', padding: '8px 16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {shots.map((s, idx) => (
-                      <div key={s.id} style={{
-                        border: '1px solid #e8e8e8',
-                        borderRadius: 8,
-                        overflow: 'hidden',
-                        background: '#fff',
-                      }}>
-                        <img src={s.dataUrl} alt={`Shot ${idx + 1}`} style={{ width: '100%', display: 'block' }} />
-                        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                          <span>Screenshot {idx + 1}</span>
-                          <Button
-                            size="small"
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => setShots((prev) => prev.filter((x) => x.id !== s.id))}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
 

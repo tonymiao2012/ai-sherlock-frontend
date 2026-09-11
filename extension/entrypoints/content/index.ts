@@ -17,6 +17,9 @@ import {
   startMicRecording,
   type MicRecording,
 } from '../../core/audio';
+import rrwebPlayer from 'rrweb-player';
+import 'rrweb-player/dist/style.css';
+import type { eventWithTime } from '@rrweb/types';
 
 export default defineContentScript({
   matches: ['http://*/*', 'https://*/*'],
@@ -331,6 +334,7 @@ interface Shape {
   pts: number[];
   text?: string;
   size?: number;
+  sizeIdx?: number;
 }
 
 const COLORS = ['#f5222d', '#fa8c16', '#1677ff', '#52c41a'];
@@ -363,6 +367,7 @@ function openAnnotationEditor(
     const scale = base.width / Math.max(1, pos.cssW);
     let tool: Tool = 'rect';
     let color = COLORS[0]!;
+    let sizeIdx = 1;
     const shapes: Shape[] = [];
     let draft: Shape | null = null;
     let settled = false;
@@ -388,6 +393,11 @@ function openAnnotationEditor(
 .sh-ed-ok:hover{background:#7CC94A}
 .sh-ed-hint{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(23,36,12,.85);color:#fff;font:13px/1.6 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;padding:5px 14px;border-radius:999px;pointer-events:none;letter-spacing:.2px}
 .sh-ed-input{position:fixed;background:transparent;border:none;outline:2px dashed rgba(255,255,255,.9);border-radius:2px;padding:0 2px;margin:0;font-weight:600;min-width:60px}
+.sh-ed-sizes{display:none;gap:2px;padding:0 2px}
+.sh-ed-sizes[data-visible="1"]{display:flex}
+.sh-ed-size{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;background:transparent;border-radius:6px;cursor:pointer;color:#454C3F;font:600 11px/1 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;padding:0}
+.sh-ed-size:hover{background:#EEF0E7}
+.sh-ed-size[data-on="1"]{background:#F3FAE9;color:#67B820;border-color:#67B820}
 `;
     const canvas = document.createElement('canvas');
     canvas.className = 'sh-ed-canvas';
@@ -419,6 +429,10 @@ function openAnnotationEditor(
         .map((t) => `<button class="sh-ed-tool" data-tool="${t}" data-on="${t === tool ? 1 : 0}">${svg(t)}</button>`)
         .join('') +
       '<i class="sh-ed-sep"></i>' +
+      `<span class="sh-ed-sizes" data-visible="${tool === 'text' || tool === 'mosaic' ? 1 : 0}">` +
+      ['S', 'M', 'L'].map((label, i) => `<button class="sh-ed-size" data-size="${i}" data-on="${i === sizeIdx ? 1 : 0}">${label}</button>`).join('') +
+      '</span>' +
+      '<i class="sh-ed-sep"></i>' +
       `<button class="sh-ed-tool" data-act="undo" disabled>${svg('undo')}</button>` +
       '<i class="sh-ed-sep"></i>' +
       `<button class="sh-ed-tool" data-act="cancel">${svg('close')}</button>` +
@@ -449,7 +463,7 @@ function openAnnotationEditor(
 
     bar.addEventListener('pointerdown', (e) => e.preventDefault());
     bar.addEventListener('click', (e) => {
-      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-color],[data-tool],[data-act]');
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-color],[data-tool],[data-act],[data-size]');
       if (!el) return;
       const c = el.dataset.color;
       if (c) {
@@ -459,12 +473,22 @@ function openAnnotationEditor(
         });
         return;
       }
+      const s = el.dataset.size;
+      if (s != null) {
+        sizeIdx = Number(s);
+        bar.querySelectorAll<HTMLElement>('[data-size]').forEach((n) => {
+          n.dataset.on = n.dataset.size === String(sizeIdx) ? '1' : '0';
+        });
+        return;
+      }
       const t = el.dataset.tool;
       if (t) {
         tool = t as Tool;
         bar.querySelectorAll<HTMLElement>('[data-tool]').forEach((n) => {
           n.dataset.on = n.dataset.tool === tool ? '1' : '0';
         });
+        const sizes = bar.querySelector<HTMLElement>('.sh-ed-sizes');
+        if (sizes) sizes.dataset.visible = (tool === 'text' || tool === 'mosaic') ? '1' : '0';
         return;
       }
       if (el.dataset.act === 'undo') {
@@ -502,8 +526,8 @@ function openAnnotationEditor(
       canvas.setPointerCapture(e.pointerId);
       draft =
         tool === 'pen'
-          ? { tool, color, pts: [p.x, p.y] }
-          : { tool, color, pts: [p.x, p.y, p.x, p.y] };
+          ? { tool, color, pts: [p.x, p.y], sizeIdx }
+          : { tool, color, pts: [p.x, p.y, p.x, p.y], sizeIdx };
       redraw();
     });
 
@@ -532,9 +556,11 @@ function openAnnotationEditor(
       redraw();
     });
 
+    const SIZE_MULT = [0.6, 1.0, 1.6];
+
     const startText = (clientX: number, clientY: number, cx: number, cy: number) => {
       textEditing = true;
-      const size = Math.max(15, base.width * 0.018);
+      const size = Math.max(15, base.width * 0.018) * SIZE_MULT[sizeIdx];
       const input = document.createElement('input');
       input.className = 'sh-ed-input';
       input.type = 'text';
@@ -552,7 +578,7 @@ function openAnnotationEditor(
         input.remove();
         textEditing = false;
         if (v) {
-          shapes.push({ tool: 'text', color, pts: [cx, cy], text: v, size });
+          shapes.push({ tool: 'text', color, pts: [cx, cy], text: v, size, sizeIdx });
           syncUndo();
           redraw();
         }
@@ -635,7 +661,7 @@ function openAnnotationEditor(
       const bw = Math.abs(x1 - x0);
       const bh = Math.abs(y1 - y0);
       if (s.tool === 'mosaic') {
-        const block = Math.max(6, Math.round(base.width / 70));
+        const block = Math.max(4, Math.round((base.width / 70) * SIZE_MULT[s.sizeIdx ?? 1]));
         const tw = Math.max(1, Math.round(bw / block));
         const th = Math.max(1, Math.round(bh / block));
         if (bw < 2 || bh < 2) {
@@ -685,7 +711,7 @@ function openAnnotationEditor(
       try {
         resolve({
           ok: true,
-          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+          dataUrl: canvas.toDataURL('image/png'),
           annotated: shapes.length > 0,
         });
       } catch (e) {
@@ -903,6 +929,7 @@ function startRecordingOverlay(): void {
 /** 阶段 3：底部浮动录制控制条（计时 + 停止按钮） */
 function showRecordingBar(overlay: HTMLElement, withAudio: boolean, startTime: number): void {
   const bar = document.createElement('div');
+  bar.className = 'sh-rec-bar';
   bar.style.cssText =
     'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:10px 10px 10px 18px;background:rgba(30,30,30,.92);border-radius:999px;box-shadow:0 8px 32px rgba(0,0,0,.45);backdrop-filter:blur(12px);z-index:2147483647;pointer-events:auto;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;opacity:0;transition:opacity .2s ease-out;';
 
@@ -959,6 +986,92 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 在主页面创建全屏 rrweb 回放遮罩（带可选音频同步） */
+function openReplayOverlay(events: eventWithTime[], audio?: AudioTrack) {
+  const root = document.createElement('div');
+  root.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;';
+
+  const container = document.createElement('div');
+  container.style.cssText = 'position:relative;';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText =
+    'position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:15px;cursor:pointer;line-height:1;z-index:10;display:flex;align-items:center;justify-content:center;';
+  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(0,0,0,.8)'; });
+  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'rgba(0,0,0,.55)'; });
+  closeBtn.addEventListener('click', close);
+
+  container.appendChild(closeBtn);
+  root.appendChild(container);
+  document.documentElement.appendChild(root);
+
+  let audioEl: HTMLAudioElement | null = null;
+  let raf = 0;
+
+  function close() {
+    cancelAnimationFrame(raf);
+    audioEl?.pause();
+    root.remove();
+  }
+
+  const player = new rrwebPlayer({
+    target: container,
+    props: {
+      events,
+      width: Math.min(880, window.innerWidth * 0.78),
+      height: Math.min(560, window.innerHeight * 0.74),
+      autoPlay: true,
+      showController: true,
+    },
+  });
+
+  if (audio) {
+    // 音频跟随 rrweb 回放：start/play-back/resume 播放，pause/finish 暂停，
+    // rAF 持续校正 currentTime（覆盖拖动/倍速）
+    const el = new Audio(audio.dataUrl);
+    audioEl = el;
+    const replayer = player.getReplayer();
+    const offsetMs = Math.max(0, audio.startedAt - (events[0]?.timestamp ?? 0));
+    let playing = false;
+    const tick = () => {
+      if (!root.isConnected) return;
+      if (playing) {
+        const expected = (offsetMs + replayer.getCurrentTime()) / 1000;
+        el.playbackRate = replayer.config?.speed ?? 1;
+        if (Number.isFinite(expected) && Math.abs(el.currentTime - expected) > 0.3) {
+          try {
+            el.currentTime = expected;
+          } catch {
+            // expected 超出音频时长时个别浏览器会抛，忽略即可
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    const play = () => {
+      playing = true;
+      void el.play().catch(() => {});
+    };
+    const stop = () => {
+      playing = false;
+      el.pause();
+    };
+    replayer.on('start', play);
+    replayer.on('play-back', play);
+    replayer.on('resume', play);
+    replayer.on('pause', stop);
+    replayer.on('finish', stop);
+    raf = requestAnimationFrame(tick);
+  }
+
+  root.addEventListener('click', (e) => {
+    if (e.target === root) close();
+  });
+}
+
 
 /* --------------------------------------------------------- 指令中转 */
 
@@ -1008,6 +1121,11 @@ function listenRuntimeCommands() {
           sendResponse({ ok: true, dump: r.payload as EvidenceDump });
         });
         return true; // 异步 sendResponse
+      }
+      if (msg?.type === 'open-replay') {
+        openReplayOverlay(msg.events as eventWithTime[], msg.audio);
+        sendResponse({ ok: true });
+        return false;
       }
       return false;
     }

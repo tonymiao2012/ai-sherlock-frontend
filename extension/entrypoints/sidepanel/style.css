@@ -194,3 +194,10 @@
   display: flex;
   flex-direction: column;
 }
+
+/* contenteditable 编辑器占位符 */
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--sh-muted);
+  pointer-events: none;
+}

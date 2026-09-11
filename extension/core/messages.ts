@@ -34,6 +34,7 @@ export type RuntimeMessage =
   | { type: 'reannotate-image'; dataUrl: string }
   | { type: 'submit-issue'; form: UserFormInput; screenshots: import('./types').ScreenshotItem[]; audio?: import('./types').AudioTrack }
   | { type: 'dump-evidence' }
+  | { type: 'open-replay'; events: import('@rrweb/types').eventWithTime[]; audio?: import('./types').AudioTrack }
   | { type: 'start-recording' }
   | { type: 'stop-recording' }
   /** 让 content script 在主页面展示录制确认 + 倒计时 + 浮动控制条的完整流程 */

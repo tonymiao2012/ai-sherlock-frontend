@@ -105,6 +105,8 @@ export interface SidebarDraft {
   description: string;
   shots: AnnotatedShot[];
   record?: { seconds: number; eventCount: number; audio?: AudioTrack; thumbnail?: string };
+  /** contenteditable 编辑器的 innerHTML，用于恢复内联截图位置 */
+  editorHtml?: string;
 }
 
 /** 用户表单输入 */
