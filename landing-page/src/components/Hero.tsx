@@ -1,23 +1,27 @@
-import { useState, useEffect } from 'react';
+// TODO: 暂时注释，等后端 statistics API 恢复后再打开
+// import { useState, useEffect } from 'react';
 import { FlowMock } from './mocks';
 import { CHROME_STORE_URL } from '../assets';
 import { IconArrowUpRight, IconBolt, IconChrome, IconGoogle, IconStar } from './icons';
-import { fetchStatistics, type Statistics } from '../services/api';
+// TODO: 暂时注释，等后端 statistics API 恢复后再打开
+// import { fetchStatistics, type Statistics } from '../services/api';
 
 /** 上线公告先不展示，等有真实变更 Log 可挂再打开 */
 const SHOW_NOTICE = false;
 
 export function Hero({ onLogin }: { onLogin: () => void }) {
-  const [stats, setStats] = useState<Statistics | null>(null);
+  // TODO: 暂时注释，等后端 statistics API 恢复后再打开
+  // const [stats, setStats] = useState<Statistics | null>(null);
 
-  useEffect(() => {
-    fetchStatistics()
-      .then(setStats)
-      .catch((err) => console.warn('Failed to fetch statistics:', err));
-  }, []);
+  // useEffect(() => {
+  //   fetchStatistics()
+  //     .then(setStats)
+  //     .catch((err) => console.warn('Failed to fetch statistics:', err));
+  // }, []);
 
-  const teams = stats ? Math.max(60, Math.floor(stats.totalCases / 100)) : 60;
-  const cases = stats ? stats.totalCases : 10000;
+  // 使用默认值
+  const teams = 60;
+  const cases = 10000;
 
   return (
     <section className="lp-hero" id="top">

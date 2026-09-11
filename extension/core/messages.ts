@@ -26,6 +26,12 @@ export type ContentToPageMsg = {
 /** chrome.runtime 消息（扩展上下文之间） */
 export type RuntimeMessage =
   | { type: 'capture-screenshot' }
+  /** dataUrl：预取的全页底图，供取色/放大镜、裁剪与页内批注 */
+  | { type: 'start-region-select'; dataUrl?: string }
+  /** 面板聚焦时页面收不到 Esc，经此转发让覆盖层取消 */
+  | { type: 'cancel-capture' }
+  /** 让页面重新批注一张已有截图（侧边栏 -> content） */
+  | { type: 'reannotate-image'; dataUrl: string }
   | { type: 'submit-issue'; form: UserFormInput; screenshots: import('./types').ScreenshotItem[]; audio?: import('./types').AudioTrack }
   | { type: 'dump-evidence' }
   | { type: 'start-recording' }
@@ -42,6 +48,11 @@ export type RuntimeMessage =
   | { type: 'get-report' }
   | { type: 'fetch-cases' }
   | { type: 'fetch-case-detail'; caseKey: string };
+
+/** content -> 侧边栏：页内批注后的成图 */
+export type CaptureResult =
+  | { ok: true; dataUrl: string; annotated: boolean }
+  | { ok: false; canceled?: boolean; error?: string };
 
 /** 带完整 sendResponse 语义的运行时消息发送 */
 export function sendRuntime<T = any>(message: RuntimeMessage): Promise<T> {

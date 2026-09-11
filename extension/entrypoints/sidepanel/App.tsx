@@ -14,7 +14,7 @@ import {
 import type { eventWithTime } from '@rrweb/types';
 import { BRAND_LOGO_URL } from '../../components/BrandLogo';
 import ReplayPlayer from '../../components/ReplayPlayer';
-import { sendRuntime, uid, type RuntimeMessage } from '../../core/messages';
+import { sendRuntime, uid, type CaptureResult, type RuntimeMessage } from '../../core/messages';
 import { clearDraft, loadCases, loadDraft, saveDraft } from '../../core/db';
 import {
   isPendingVerifyStatus,
@@ -314,8 +314,20 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 截图覆盖层激活时，sidepanel 焦点下按 Esc 转发给页面
+  useEffect(() => {
+    if (!capturing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        sendToTab('cancel-capture').catch(() => {});
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [capturing]);
+
   const sendToTab = async (
-    type: 'start-recording-overlay' | 'dump-evidence',
+    type: 'start-recording-overlay' | 'dump-evidence' | 'start-region-select' | 'cancel-capture' | 'reannotate-image',
     extra?: Record<string, unknown>
   ) => {
     const [tab] = await chrome.tabs.query({
@@ -332,26 +344,7 @@ export default function App() {
     }
   };
 
-  // 将整页截图压到最大 1440 宽 + JPEG 0.8，减少 base64 payload
-  const downscaleDataUrl = async (dataUrl: string, maxWidth = 1440, quality = 0.8): Promise<string> => {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const im = new Image();
-      im.onload = () => resolve(im);
-      im.onerror = reject;
-      im.src = dataUrl;
-    });
-    if (img.width <= maxWidth) return dataUrl;
-    const k = maxWidth / img.width;
-    const c = document.createElement('canvas');
-    c.width = maxWidth;
-    c.height = Math.round(img.height * k);
-    const ctx = c.getContext('2d');
-    if (!ctx) return dataUrl;
-    ctx.drawImage(img, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', quality);
-  };
-
-  // 截图：直接插入到编辑区，不再走页面框选/批注覆盖层
+  // 截图：截取全页 → 页面框选 → 批注 → 插入到编辑区
   const capture = async () => {
     setCapturing(true);
     try {
@@ -365,10 +358,20 @@ export default function App() {
         message.error(`Capture failed: ${resp?.error ?? 'unknown error'}`);
         return;
       }
-      const dataUrl = await downscaleDataUrl(resp.dataUrl);
+      const result = (await sendToTab('start-region-select', {
+        dataUrl: resp.dataUrl,
+      })) as CaptureResult | undefined;
+      if (!result) {
+        message.error('Capture failed: the page did not respond');
+        return;
+      }
+      if (!result.ok) {
+        if (!result.canceled) message.error(`Capture failed: ${result.error}`);
+        return;
+      }
       setShots((prev) => [
         ...prev,
-        { id: uid('shot-'), dataUrl, annotated: false },
+        { id: uid('shot-'), dataUrl: result.dataUrl, annotated: result.annotated },
       ]);
       message.success('Screenshot inserted');
     } catch (e) {
