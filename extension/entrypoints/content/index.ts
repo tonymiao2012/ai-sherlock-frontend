@@ -954,7 +954,9 @@ function showRecordingBar(overlay: HTMLElement, startTime: number): void {
     const elapsed = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
     const m = Math.floor(elapsed / 60);
     const s = elapsed % 60;
-    timer.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    const text = `${m}:${String(s).padStart(2, '0')}`;
+    // textContent 写入会替换文本节点，产生 rrweb mutation 事件，仅在秒数变化时写入
+    if (timer.textContent !== text) timer.textContent = text;
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

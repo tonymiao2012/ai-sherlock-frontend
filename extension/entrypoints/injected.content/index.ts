@@ -342,7 +342,7 @@ async function startRecording(): Promise<{ ok: boolean; error?: string }> {
         script: true,
         comment: true,
       },
-      ignoreSelector: '.sh-rec-bar, .sh-rec-bar *',
+      blockSelector: '.sh-rec-bar',
       sampling: {
         mousemove: 120,
         mouseInteraction: true,

@@ -115,10 +115,7 @@ async function submitIssue(
   const pkg = buildPackage(form, screenshots, dump, evidenceError, audio);
   // MVP：直接打印完整 payload，可在 chrome://extensions -> service worker 控制台查看
   console.log('[AI Sherlock] issue payload:', pkg);
-  console.log(
-    '[AI Sherlock] payload JSON:',
-    JSON.stringify(pkg, null, 2)
-  );
+  console.log('[AI Sherlock] payload JSON:', JSON.stringify(pkg));
 
   // 调用后端 API
   const apiResp = await postIssue(pkg);

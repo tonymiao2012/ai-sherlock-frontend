@@ -36,7 +36,7 @@ export default function ReportApp() {
       .then((r) => {
         if (r) {
           console.log('[AI Sherlock] issue payload:', r);
-          console.log('[AI Sherlock] payload JSON:', JSON.stringify(r, null, 2));
+          console.log('[AI Sherlock] payload JSON:', JSON.stringify(r));
         }
         setReport(r);
       })
